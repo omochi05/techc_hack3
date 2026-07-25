@@ -12,6 +12,8 @@ import {
   CharacterCard,
 } from "./components/character/CharacterCard";
 
+import DeviceConnectButton from "./components/device/DeviceConnectButton";
+
 import {
   useActivity,
 } from "./hooks/useActivity";
@@ -74,6 +76,20 @@ function App() {
             levelUpMessage
           }
         />
+
+        <section className="device-connect-preview">
+          <h2>デバイス接続</h2>
+
+          <div className="device-connect-preview__grid">
+            <DeviceConnectButton
+              deviceId="glove_1"
+            />
+
+            <DeviceConnectButton
+              deviceId="glove_2"
+            />
+          </div>
+        </section>
 
         <ActivityForm
           form={activityForm}
