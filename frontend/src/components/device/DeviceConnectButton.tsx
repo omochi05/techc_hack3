@@ -1,81 +1,130 @@
-import { useState } from "react";
+import {
+  useState,
+} from "react";
+
+import {
+  connectDevice,
+} from "../../api/deviceApi";
+
+import type {
+  ConnectionStatus,
+  DeviceId,
+} from "../../types/device";
+
 import "./DeviceConnectButton.css";
 
-type ConnectionStatus =
-  | "DISCONNECTED"
-  | "CONNECTING"
-  | "CONNECTED"
-  | "ERROR";
+interface DeviceConnectButtonProps {
+  deviceId: DeviceId;
+}
 
-type DeviceConnectButtonProps = {
-  deviceId: string;
-  initialStatus?: ConnectionStatus;
-};
-
-const STATUS_LABELS: Record<ConnectionStatus, string> = {
+const STATUS_LABELS: Record<
+  ConnectionStatus,
+  string
+> = {
   DISCONNECTED: "未接続",
   CONNECTING: "接続中",
   CONNECTED: "接続済み",
   ERROR: "接続エラー",
 };
 
-export default function DeviceConnectButton({
+export function DeviceConnectButton({
   deviceId,
-  initialStatus = "DISCONNECTED",
 }: DeviceConnectButtonProps) {
-  const [status, setStatus] =
-    useState<ConnectionStatus>(initialStatus);
+  const [
+    connectionStatus,
+    setConnectionStatus,
+  ] = useState<ConnectionStatus>(
+    "DISCONNECTED",
+  );
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
 
   const handleConnect = async () => {
-    if (status === "CONNECTING") {
+    if (
+      connectionStatus === "CONNECTING" ||
+      connectionStatus === "CONNECTED"
+    ) {
       return;
     }
 
+    setConnectionStatus("CONNECTING");
+    setErrorMessage("");
+
     try {
-      setStatus("CONNECTING");
+      await connectDevice(deviceId);
 
-      // Task 025では仮の接続処理
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, 1000);
-      });
-
-      setStatus("CONNECTED");
+      setConnectionStatus("CONNECTED");
     } catch (error) {
-      console.error("Device connection error:", error);
-      setStatus("ERROR");
+      setConnectionStatus("ERROR");
+
+      if (error instanceof Error) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage(
+          "予期しないエラーが発生しました。",
+        );
+      }
     }
   };
 
-  const buttonLabel =
-    status === "CONNECTING"
-      ? "接続中..."
-      : status === "CONNECTED"
-        ? "再接続"
-        : "機器に接続";
+  const isConnecting =
+    connectionStatus === "CONNECTING";
+
+  const isConnected =
+    connectionStatus === "CONNECTED";
 
   return (
     <div className="device-connect">
       <div className="device-connect__info">
-        <span className="device-connect__id">
-          グローブID: {deviceId}
+        <span className="device-connect__label">
+          DEVICE
         </span>
 
-        <span
-          className={`device-connect__status device-connect__status--${status.toLowerCase()}`}
-        >
-          <span className="device-connect__status-dot" />
-          {STATUS_LABELS[status]}
-        </span>
+        <strong className="device-connect__id">
+          {deviceId}
+        </strong>
       </div>
 
-      <button
-        type="button"
-        className="device-connect__button"
-        onClick={handleConnect}
-        disabled={status === "CONNECTING"}
-      >
-        {buttonLabel}
-      </button>
+      <div className="device-connect__status-area">
+        <span
+          className={[
+            "device-connect__status",
+            `device-connect__status--${connectionStatus.toLowerCase()}`,
+          ].join(" ")}
+        >
+          {STATUS_LABELS[connectionStatus]}
+        </span>
+
+        <button
+          type="button"
+          className="device-connect__button"
+          onClick={handleConnect}
+          disabled={
+            isConnecting ||
+            isConnected
+          }
+        >
+          {isConnecting
+            ? "接続しています..."
+            : isConnected
+              ? "接続完了"
+              : connectionStatus === "ERROR"
+                ? "再接続"
+                : "接続する"}
+        </button>
+      </div>
+
+      {errorMessage && (
+        <p
+          className="device-connect__error"
+          role="alert"
+        >
+          {errorMessage}
+        </p>
+      )}
     </div>
   );
 }

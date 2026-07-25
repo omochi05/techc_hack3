@@ -1,91 +1,119 @@
 .device-connect {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  border: 1px solid
+    rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .device-connect__info {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+}
+
+.device-connect__label {
+  color: #858ba9;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
 }
 
 .device-connect__id {
-  color: #a7abc0;
-  font-size: 14px;
+  color: #ffffff;
+}
+
+.device-connect__status-area {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .device-connect__status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid #2d3147;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 13px;
+  gap: 8px;
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
-.device-connect__status-dot {
+.device-connect__status::before {
+  content: "";
   width: 8px;
   height: 8px;
+  flex-shrink: 0;
   border-radius: 50%;
   background: currentColor;
+  box-shadow: 0 0 10px currentColor;
 }
 
 .device-connect__status--disconnected {
-  color: #9499ad;
+  color: #9298b5;
 }
 
 .device-connect__status--connecting {
-  color: #9d7cff;
+  color: #ffd166;
 }
 
 .device-connect__status--connected {
-  color: #4ade80;
+  color: #5df4a6;
 }
 
 .device-connect__status--error {
-  color: #fb7185;
+  color: #ff789a;
 }
 
 .device-connect__button {
-  width: 100%;
   min-height: 42px;
-  padding: 10px 16px;
-  border: 1px solid #7c5cff;
-  border-radius: 8px;
+  padding: 0 18px;
+  border: 1px solid
+    rgba(137, 120, 255, 0.6);
+  border-radius: 11px;
   background: linear-gradient(
-    90deg,
-    rgba(109, 77, 255, 0.22),
-    rgba(130, 80, 255, 0.34)
+    135deg,
+    #755cff,
+    #4f8cff
   );
   color: #ffffff;
-  font: inherit;
-  font-weight: 700;
   cursor: pointer;
+  font-weight: 800;
   transition:
-    transform 0.15s ease,
-    opacity 0.15s ease,
-    box-shadow 0.15s ease;
+    transform 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .device-connect__button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 0 20px rgba(124, 92, 255, 0.24);
+  transform: translateY(-2px);
 }
 
 .device-connect__button:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.55;
 }
 
-@media (max-width: 640px) {
-  .device-connect__info {
-    align-items: flex-start;
+.device-connect__error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid
+    rgba(255, 79, 125, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 79, 125, 0.08);
+  color: #ff9ab3;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .device-connect__status-area {
+    align-items: stretch;
     flex-direction: column;
+  }
+
+  .device-connect__button {
+    width: 100%;
   }
 }

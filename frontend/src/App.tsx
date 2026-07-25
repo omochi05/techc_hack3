@@ -12,7 +12,9 @@ import {
   CharacterCard,
 } from "./components/character/CharacterCard";
 
-import DeviceConnectButton from "./components/device/DeviceConnectButton";
+import {
+  DeviceConnectButton,
+} from "./components/device/DeviceConnectButton";
 
 import {
   useActivity,
