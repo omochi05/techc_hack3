@@ -6,7 +6,10 @@ from schemas.sensor_record import (
     SensorRecordCreate,
     SensorRecordResponse,
 )
-from services.sensor_record_service import create_sensor_record
+from services.sensor_record_service import (
+    create_sensor_record,
+    get_sensor_records,
+)
 
 
 router = APIRouter(
@@ -31,4 +34,20 @@ def create_sensor_record_endpoint(
         match_id=match_id,
         round_id=round_id,
         sensor_data=sensor_data,
+    )
+
+
+@router.get(
+    "/{match_id}/rounds/{round_id}/sensor-data",
+    response_model=list[SensorRecordResponse],
+)
+def get_sensor_records_endpoint(
+    match_id: int,
+    round_id: int,
+    db: Session = Depends(get_db),
+) -> list[SensorRecordResponse]:
+    return get_sensor_records(
+        db=db,
+        match_id=match_id,
+        round_id=round_id,
     )

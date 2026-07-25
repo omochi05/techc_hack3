@@ -20,6 +20,10 @@ def create_sensor_record(
     round_id: int,
     sensor_data: SensorRecordCreate,
 ) -> SensorRecord:
+    """
+    進行中のラウンドへセンサーデータを登録する。
+    """
+
     match = (
         db.query(BoxingMatch)
         .filter(BoxingMatch.id == match_id)
@@ -53,9 +57,9 @@ def create_sensor_record(
             detail="進行中のラウンドにのみセンサーデータを登録できます。",
         )
 
-    mapped_player_name = DEVICE_PLAYER_MAP.get(sensor_data.device_id)
+    mapped_player = DEVICE_PLAYER_MAP.get(sensor_data.device_id)
 
-    if mapped_player_name is None:
+    if mapped_player is None:
         raise HTTPException(
             status_code=400,
             detail="登録されていないデバイスIDです。",
@@ -66,7 +70,7 @@ def create_sensor_record(
         "player2": match.player2_name,
     }
 
-    player_name = match_player_map.get(mapped_player_name)
+    player_name = match_player_map.get(mapped_player)
 
     if player_name is None:
         raise HTTPException(
@@ -84,16 +88,76 @@ def create_sensor_record(
         impact_value=sensor_data.impact_value,
     )
 
-    db.add(record)
-
     try:
+        db.add(record)
         db.commit()
         db.refresh(record)
+
+        return record
+
     except SQLAlchemyError as exc:
         db.rollback()
+
+        print("SensorRecord save error:", repr(exc))
+
         raise HTTPException(
             status_code=500,
             detail="センサーデータの保存に失敗しました。",
         ) from exc
 
-    return record
+
+def get_sensor_records(
+    db: Session,
+    match_id: int,
+    round_id: int,
+) -> list[SensorRecord]:
+    """
+    指定された試合・ラウンドのセンサーデータを取得する。
+    """
+
+    match = (
+        db.query(BoxingMatch)
+        .filter(BoxingMatch.id == match_id)
+        .first()
+    )
+
+    if match is None:
+        raise HTTPException(
+            status_code=404,
+            detail="試合が見つかりません。",
+        )
+
+    boxing_round = (
+        db.query(BoxingRound)
+        .filter(
+            BoxingRound.id == round_id,
+            BoxingRound.match_id == match_id,
+        )
+        .first()
+    )
+
+    if boxing_round is None:
+        raise HTTPException(
+            status_code=404,
+            detail="ラウンドが見つかりません。",
+        )
+
+    try:
+        return (
+            db.query(SensorRecord)
+            .filter(
+                SensorRecord.match_id == match_id,
+                SensorRecord.round_id == round_id,
+            )
+            .order_by(
+                SensorRecord.created_at.asc(),
+                SensorRecord.id.asc(),
+            )
+            .all()
+        )
+
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="センサーデータの取得に失敗しました。",
+        ) from exc
