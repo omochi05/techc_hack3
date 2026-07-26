@@ -2100,3 +2100,93 @@
   transform: translateY(-1px);
   filter: brightness(1.08);
 }
+
+.result-page {
+  min-height: 100vh;
+  padding: 40px 24px;
+  background: linear-gradient(180deg, #0f172a, #1e293b);
+  color: #fff;
+  text-align: center;
+}
+
+.result-page__header h1 {
+  margin: 12px 0;
+  font-size: 2.5rem;
+  color: #facc15;
+}
+
+.result-page__label {
+  color: #94a3b8;
+  letter-spacing: 2px;
+  font-size: 0.9rem;
+}
+
+.result-page__players {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 32px;
+  margin: 48px 0;
+  flex-wrap: wrap;
+}
+
+.result-player {
+  width: 280px;
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.result-player--winner {
+  border: 3px solid #facc15;
+}
+
+.result-player__status {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-weight: bold;
+  color: #facc15;
+}
+
+.result-player__image {
+  width: 180px;
+  height: 180px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto 20px;
+}
+
+.result-player__stats {
+  text-align: left;
+}
+
+.result-player__stats div {
+  display: flex;
+  justify-content: space-between;
+  margin: 10px 0;
+}
+
+.result-page__versus {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #f87171;
+}
+
+.result-page__next-button {
+  margin-top: 24px;
+  padding: 14px 28px;
+  font-size: 1rem;
+  font-weight: bold;
+  color: white;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.result-page__next-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}

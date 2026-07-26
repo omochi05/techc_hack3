@@ -53,6 +53,10 @@ export default function App() {
       );
 
     default:
-      return null;
+      return (
+        <TopPage
+          onStart={() => setScreen("connection")}
+        />
+      );
   }
 }
