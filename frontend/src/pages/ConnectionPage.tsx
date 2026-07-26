@@ -158,6 +158,15 @@ export default function ConnectionPage({
     }, 900);
   };
 
+  const startDemoMode = () => {
+    setGlove1Status("connected");
+    setGlove2Status("connected");
+
+    window.setTimeout(() => {
+      onConnected();
+    }, 300);
+  };
+
   return (
     <main className="connection-page">
       <section className="connection-page__container">
@@ -248,20 +257,30 @@ export default function ConnectionPage({
             </div>
           </div>
 
-          <button
-            type="button"
-            className="connection-ready-panel__button"
-            onClick={onConnected}
-            disabled={!allConnected}
-          >
-            試合画面へ進む
-            <span aria-hidden="true">→</span>
-          </button>
+          <div className="connection-page__actions">
+            <button
+              type="button"
+              className="connection-ready-panel__button"
+              onClick={onConnected}
+              disabled={!allConnected}
+            >
+              試合画面へ進む
+              <span aria-hidden="true">→</span>
+            </button>
+
+            <button
+              type="button"
+              className="connection-page__demo-button"
+              onClick={startDemoMode}
+            >
+              デモモードで確認
+            </button>
+          </div>
         </section>
 
         <footer className="connection-page__footer">
           <span>
-            COMMUTATOR STATUS: ONLINE
+            COMMUNICATOR STATUS: ONLINE
           </span>
 
           <span>

@@ -1,3 +1,4 @@
+import "./App.css";
 import { useState } from "react";
 
 import ConnectionPage from "./pages/ConnectionPage";
