@@ -9,6 +9,7 @@ from services.device_service import (
     connect_device,
     disconnect_device,
     get_device_status,
+    is_allowed_device,
     start_pairing,
 )
 
@@ -17,6 +18,17 @@ router = APIRouter(
     prefix="/api/devices",
     tags=["devices"],
 )
+
+
+def validate_device_id(device_id: str) -> None:
+    """
+    登録されていないデバイスIDを拒否する。
+    """
+    if not is_allowed_device(device_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="指定されたデバイスは登録されていません。",
+        )
 
 
 @router.post(
@@ -30,6 +42,7 @@ def enable_pairing_mode(
     """
     ESP32の接続ボタンが押された際に呼び出す。
     """
+    validate_device_id(request.device_id)
     start_pairing(request.device_id)
 
     return DeviceConnectionResponse(
@@ -53,6 +66,8 @@ def connected(
     """
     ESP32が接続完了を通知する際に呼び出す。
     """
+    validate_device_id(request.device_id)
+
     if not connect_device(request.device_id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -76,6 +91,7 @@ def connected(
 def get_status(
     device_id: str,
 ) -> DeviceConnectionResponse:
+    validate_device_id(device_id)
     device_status = get_device_status(device_id)
 
     message_map = {
@@ -102,6 +118,7 @@ def disconnected(
     """
     ESP32が切断を通知する際に呼び出す。
     """
+    validate_device_id(request.device_id)
     disconnect_device(request.device_id)
 
     return DeviceConnectionResponse(
