@@ -1,128 +1,58 @@
-import "./App.css";
+import { useState } from "react";
 
-import {
-  ActivityForm,
-} from "./components/activity/ActivityForm";
+import ConnectionPage from "./pages/ConnectionPage";
+import HealthPage from "./pages/HealthPage";
+import MatchPage from "./pages/MatchPage";
+import ResultPage from "./pages/ResultPage";
+import TopPage from "./pages/TopPage";
 
-import {
-  AnalysisCard,
-} from "./components/activity/AnalysisCard";
+type Screen =
+  | "top"
+  | "connection"
+  | "match"
+  | "result"
+  | "health";
 
-import {
-  CharacterCard,
-} from "./components/character/CharacterCard";
+export default function App() {
+  const [screen, setScreen] = useState<Screen>("top");
 
-import {
-  DeviceConnectButton,
-} from "./components/device/DeviceConnectButton";
-
-import {
-  useActivity,
-} from "./hooks/useActivity";
-
-function App() {
-  const {
-    character,
-    activityForm,
-    calculationResult,
-    analysisResult,
-    message,
-    messageType,
-    isSubmitting,
-    levelUpMessage,
-    updateField,
-    submitActivity,
-    resetForm,
-  } = useActivity();
-
-  return (
-    <main className="app">
-      <section className="status-screen">
-        <header className="screen-header">
-          <div>
-            <p className="screen-eyebrow">
-              CHARACTER PROFILE
-            </p>
-
-            <h1>
-              キャラクターステータス
-            </h1>
-          </div>
-
-          <div className="header-user-area">
-            <div className="logged-in-user">
-              <span>プレイヤー</span>
-
-              <strong>
-                ゲストユーザー
-              </strong>
-            </div>
-
-            <span className="online-badge">
-              <span
-                className="online-dot"
-                aria-hidden="true"
-              />
-
-              プレイ中
-            </span>
-          </div>
-        </header>
-
-        <CharacterCard
-          character={character}
-          calculationResult={
-            calculationResult
-          }
-          levelUpMessage={
-            levelUpMessage
-          }
+  switch (screen) {
+    case "top":
+      return (
+        <TopPage
+          onStart={() => setScreen("connection")}
         />
+      );
 
-        <section className="device-connect-preview">
-          <h2>デバイス接続</h2>
-
-          <div className="device-connect-preview__grid">
-            <DeviceConnectButton
-              deviceId="glove_1"
-            />
-
-            <DeviceConnectButton
-              deviceId="glove_2"
-            />
-          </div>
-        </section>
-
-        <ActivityForm
-          form={activityForm}
-          message={message}
-          messageType={
-            messageType
-          }
-          isSubmitting={
-            isSubmitting
-          }
-          onChange={
-            updateField
-          }
-          onSubmit={
-            submitActivity
-          }
-          onReset={
-            resetForm
-          }
+    case "connection":
+      return (
+        <ConnectionPage
+          onConnected={() => setScreen("match")}
         />
+      );
 
-        {analysisResult !== null && (
-          <AnalysisCard
-            result={
-              analysisResult
-            }
-          />
-        )}
-      </section>
-    </main>
-  );
+    case "match":
+      return (
+        <MatchPage
+          onFinish={() => setScreen("result")}
+        />
+      );
+
+    case "result":
+      return (
+        <ResultPage
+          onNext={() => setScreen("health")}
+        />
+      );
+
+    case "health":
+      return (
+        <HealthPage
+          onBackToTop={() => setScreen("top")}
+        />
+      );
+
+    default:
+      return null;
+  }
 }
-
-export default App;
