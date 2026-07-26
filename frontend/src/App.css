@@ -2055,3 +2055,48 @@
     padding: 14px 18px;
   }
 }
+
+.match-player-image {
+  width: 150px;
+  height: 150px;
+  display: block;
+  margin: 16px auto;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 16px 22px rgba(0, 0, 0, 0.4));
+}
+
+.match-commentator-image {
+  width: 90px;
+  height: 90px;
+  display: block;
+  margin: 8px auto;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.36));
+}
+
+.match-page__finish-button {
+  min-height: 42px;
+  padding: 0 20px;
+  border: 1px solid rgba(239, 68, 68, 0.7);
+  border-radius: 10px;
+  color: #ffffff;
+  background: linear-gradient(
+    135deg,
+    #dc3545,
+    #8f2030
+  );
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    filter 0.18s ease;
+}
+
+.match-page__finish-button:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
