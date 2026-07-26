@@ -43,29 +43,29 @@ def enable_pairing_mode(
 
 
 @router.post(
-    "/connect",
+    "/connected",
     response_model=DeviceConnectionResponse,
     status_code=status.HTTP_200_OK,
 )
-def connect(
+def connected(
     request: DeviceRequest,
 ) -> DeviceConnectionResponse:
     """
-    Reactの接続ボタンから呼び出す。
+    ESP32が接続完了を通知する際に呼び出す。
     """
     if not connect_device(request.device_id):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
                 "デバイスが接続待機状態ではありません。"
-                "端末側の接続ボタンを押してください。"
+                "先に接続待機状態へ変更してください。"
             ),
         )
 
     return DeviceConnectionResponse(
         device_id=request.device_id,
         status="CONNECTED",
-        message="デバイスに接続しました。",
+        message="デバイスの接続が完了しました。",
     )
 
 
@@ -80,7 +80,7 @@ def get_status(
 
     message_map = {
         "DISCONNECTED": "デバイスは接続されていません。",
-        "PAIRING": "デバイスは接続待機中です。",
+        "PAIRING": "デバイスは接続中です。",
         "CONNECTED": "デバイスは接続済みです。",
     }
 
@@ -92,16 +92,20 @@ def get_status(
 
 
 @router.post(
-    "/disconnect",
+    "/disconnected",
     response_model=DeviceConnectionResponse,
+    status_code=status.HTTP_200_OK,
 )
-def disconnect(
+def disconnected(
     request: DeviceRequest,
 ) -> DeviceConnectionResponse:
+    """
+    ESP32が切断を通知する際に呼び出す。
+    """
     disconnect_device(request.device_id)
 
     return DeviceConnectionResponse(
         device_id=request.device_id,
         status="DISCONNECTED",
-        message="デバイスの接続を解除しました。",
+        message="デバイスの接続が解除されました。",
     )
