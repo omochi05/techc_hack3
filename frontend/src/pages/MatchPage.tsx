@@ -11,15 +11,27 @@ import refereeImage from "../assets/referee.png";
 
 import {
   generateCommentary,
-  type CommentaryPlayer,
   type CommentaryRequest,
 } from "../api/commentaryApi";
+
+import type {
+  MatchEvent,
+  MatchPlayer,
+} from "../types/matchEvent";
+
+import {
+  createComboEvent,
+  createMatchEndEvent,
+  createMatchStartEvent,
+  createPunchEvent,
+} from "../utils/matchEventHandler";
+
 type MatchPageProps = {
   onFinish: () => void;
 };
 
 type CommentaryBubble = {
-  player: CommentaryPlayer | "center";
+  player: MatchPlayer | "center";
   text: string;
 };
 
@@ -74,18 +86,39 @@ export default function MatchPage({
     [],
   );
 
-  const requestCommentary = useCallback(
+  const convertMatchEventToCommentaryRequest =
+    useCallback(
+      (
+        event: MatchEvent,
+      ): CommentaryRequest => {
+        return {
+          event_type: event.type,
+          player: event.player,
+          power: event.power,
+          combo_count: event.comboCount,
+          player1_hp: event.player1Hp,
+          player2_hp: event.player2Hp,
+          winner: event.winner,
+        };
+      },
+      [],
+    );
+
+  const handleMatchEvent = useCallback(
     async (
-      request: CommentaryRequest,
+      event: MatchEvent,
     ): Promise<void> => {
       try {
+        const request =
+          convertMatchEventToCommentaryRequest(event);
+
         const response =
           await generateCommentary(request);
 
         const bubblePosition:
-          | CommentaryPlayer
+          | MatchPlayer
           | "center" =
-          request.player ?? "center";
+          event.player ?? "center";
 
         showCommentaryBubble(
           bubblePosition,
@@ -93,19 +126,22 @@ export default function MatchPage({
         );
       } catch (error) {
         console.error(
-          "実況の取得に失敗しました",
+          "試合イベントの処理に失敗しました",
           error,
         );
       }
     },
-    [showCommentaryBubble],
+    [
+      convertMatchEventToCommentaryRequest,
+      showCommentaryBubble,
+    ],
   );
 
   useEffect(() => {
-    void requestCommentary({
-      event_type: "match_start",
-    });
-  }, [requestCommentary]);
+    const event = createMatchStartEvent();
+
+    void handleMatchEvent(event);
+  }, [handleMatchEvent]);
 
   useEffect(() => {
     return () => {
@@ -114,29 +150,59 @@ export default function MatchPage({
   }, [hideCommentaryBubble]);
 
   const handlePlayer1Attack = (): void => {
-    void requestCommentary({
-      event_type: "strong_punch",
-      player: "playerA",
-      power: 87,
-    });
+    const event = createPunchEvent(
+      "playerA",
+      87,
+    );
+
+    void handleMatchEvent(event);
   };
 
   const handlePlayer2Attack = (): void => {
-    void requestCommentary({
-      event_type: "combo",
-      player: "playerB",
-      combo_count: 3,
-    });
+    const event = createPunchEvent(
+      "playerB",
+      72,
+    );
+
+    void handleMatchEvent(event);
+  };
+
+  const handlePlayer1Combo = (): void => {
+    const event = createComboEvent(
+      "playerA",
+      3,
+    );
+
+    void handleMatchEvent(event);
+  };
+
+  const handlePlayer2Combo = (): void => {
+    const event = createComboEvent(
+      "playerB",
+      4,
+    );
+
+    void handleMatchEvent(event);
   };
 
   const handleFinish = (): void => {
     hideCommentaryBubble();
-    onFinish();
+
+    const event = createMatchEndEvent(
+      "playerA",
+    );
+
+    void handleMatchEvent(event);
+
+    window.setTimeout(() => {
+      onFinish();
+    }, 1000);
   };
 
   return (
     <main className="match-page">
-      {commentaryBubble?.player === "center" && (
+      {commentaryBubble?.player ===
+        "center" && (
         <div className="commentary-bubble commentary-bubble--center">
           {commentaryBubble.text}
         </div>
@@ -144,7 +210,8 @@ export default function MatchPage({
 
       <section className="match-page__arena">
         <div className="match-page__player match-page__player--one">
-          {commentaryBubble?.player === "playerA" && (
+          {commentaryBubble?.player ===
+            "playerA" && (
             <div className="commentary-bubble commentary-bubble--left">
               {commentaryBubble.text}
             </div>
@@ -163,6 +230,14 @@ export default function MatchPage({
           >
             PLAYER 1 攻撃テスト
           </button>
+
+          <button
+            type="button"
+            className="match-page__attack-button"
+            onClick={handlePlayer1Combo}
+          >
+            PLAYER 1 コンボテスト
+          </button>
         </div>
 
         <div className="match-page__referee">
@@ -174,7 +249,8 @@ export default function MatchPage({
         </div>
 
         <div className="match-page__player match-page__player--two">
-          {commentaryBubble?.player === "playerB" && (
+          {commentaryBubble?.player ===
+            "playerB" && (
             <div className="commentary-bubble commentary-bubble--right">
               {commentaryBubble.text}
             </div>
@@ -192,6 +268,14 @@ export default function MatchPage({
             onClick={handlePlayer2Attack}
           >
             PLAYER 2 攻撃テスト
+          </button>
+
+          <button
+            type="button"
+            className="match-page__attack-button"
+            onClick={handlePlayer2Combo}
+          >
+            PLAYER 2 コンボテスト
           </button>
         </div>
       </section>
