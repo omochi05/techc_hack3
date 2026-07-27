@@ -22,6 +22,10 @@ import type {
   MatchEvent,
   MatchPlayer,
 } from "../types/match";
+import type {
+  MatchResult,
+  MatchWinner,
+} from "../types/matchResult";
 import {
   createComboEvent,
   createMatchEndEvent,
@@ -30,7 +34,7 @@ import {
 } from "../utils/matchEventHandler";
 
 type MatchPageProps = {
-  onFinish: () => void;
+  onFinish: (result: MatchResult) => void;
 };
 
 type CommentaryBubble = {
@@ -53,7 +57,6 @@ type PlayerPanelProps = {
 
 const COMMENTARY_DISPLAY_TIME = 3000;
 const PUNCH_POLLING_INTERVAL = 1000;
-const FINISH_DELAY = 1000;
 const MAX_HP = 100;
 const INITIAL_MATCH_TIME = 45;
 const DAMAGE_DIVISOR = 10;
@@ -190,9 +193,13 @@ export default function MatchPage({
     playerA: 0,
     playerB: 0,
   });
+  const [maxCombo, setMaxCombo] = useState({
+    playerA: 0,
+    playerB: 0,
+  });
 
   const commentaryTimerRef = useRef<number | null>(null);
-  const finishTimerRef = useRef<number | null>(null);
+  const finishStartedRef = useRef(false);
   const lastProcessedPunchIdRef = useRef<number | null>(null);
   const isPollingRef = useRef(false);
   const hasInitializedStatusRef = useRef(false);
@@ -378,9 +385,6 @@ export default function MatchPage({
     return () => {
       hideCommentaryBubble();
 
-      if (finishTimerRef.current !== null) {
-        window.clearTimeout(finishTimerRef.current);
-      }
     };
   }, [hideCommentaryBubble]);
 
@@ -406,6 +410,19 @@ export default function MatchPage({
     }));
 
   }, [matchStatus]);
+
+  useEffect(() => {
+    setMaxCombo((current) => ({
+      playerA: Math.max(
+        current.playerA,
+        Math.max(consecutiveHits.playerA - 1, 0),
+      ),
+      playerB: Math.max(
+        current.playerB,
+        Math.max(consecutiveHits.playerB - 1, 0),
+      ),
+    }));
+  }, [consecutiveHits]);
 
   useEffect(() => {
     if (!isTimerRunning || isFinishing) {
@@ -466,32 +483,83 @@ export default function MatchPage({
   };
 
   const handleFinish = useCallback((): void => {
-    if (isFinishing) {
+    if (finishStartedRef.current) {
       return;
     }
 
+    finishStartedRef.current = true;
     setIsFinishing(true);
     setIsTimerRunning(false);
     hideCommentaryBubble();
 
     const player1Hp = localHp.playerA;
     const player2Hp = localHp.playerB;
-    const winner: MatchPlayer =
-      player2Hp > player1Hp ? "playerB" : "playerA";
 
-    void handleMatchEvent(
-      createMatchEndEvent(winner),
+    const winner: MatchWinner =
+      player1Hp === player2Hp
+        ? "draw"
+        : player1Hp > player2Hp
+          ? "playerA"
+          : "playerB";
+
+    const finishType: MatchResult["finishType"] =
+      player1Hp === 0 || player2Hp === 0
+        ? "ko"
+        : "decision";
+
+    if (winner !== "draw") {
+      void handleMatchEvent(createMatchEndEvent(winner));
+    }
+
+    const player1CurrentCombo = Math.max(
+      consecutiveHits.playerA - 1,
+      0,
+    );
+    const player2CurrentCombo = Math.max(
+      consecutiveHits.playerB - 1,
+      0,
     );
 
-    finishTimerRef.current = window.setTimeout(() => {
-      onFinish();
-    }, FINISH_DELAY);
+    const result: MatchResult = {
+      winner,
+      finishType,
+      player1Hp,
+      player2Hp,
+      player1Punches: Math.max(
+        localPunches.playerA,
+        matchStatus?.player1_total_punches ?? 0,
+      ),
+      player2Punches: Math.max(
+        localPunches.playerB,
+        matchStatus?.player2_total_punches ?? 0,
+      ),
+      player1MaxCombo: Math.max(
+        maxCombo.playerA,
+        player1CurrentCombo,
+      ),
+      player2MaxCombo: Math.max(
+        maxCombo.playerB,
+        player2CurrentCombo,
+      ),
+      remainingTime: displayTimeLeft,
+    };
+
+    // 遅延させず、その場で結果をAppへ渡して画面遷移する。
+    onFinish(result);
   }, [
+    consecutiveHits.playerA,
+    consecutiveHits.playerB,
+    displayTimeLeft,
     handleMatchEvent,
     hideCommentaryBubble,
-    isFinishing,
     localHp.playerA,
     localHp.playerB,
+    localPunches.playerA,
+    localPunches.playerB,
+    matchStatus?.player1_total_punches,
+    matchStatus?.player2_total_punches,
+    maxCombo.playerA,
+    maxCombo.playerB,
     onFinish,
   ]);
 

@@ -14,6 +14,7 @@ frontend/dist-ssr/
 frontend/.env
 frontend/.env.local
 frontend/*.local
+dist/
 
 # Backend
 backend/.venv/
