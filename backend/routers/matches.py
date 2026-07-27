@@ -3,14 +3,21 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from schemas.match import (
+    BoxingEventRequest,
     LatestPunchResponse,
     MatchCreate,
     MatchResponse,
+    MatchStatusResponse,
     PunchCreateRequest,
     PunchResponse,
 )
-from schemas.round import RoundFinishRequest, RoundResponse
-from services.match_event_service import match_event_service
+from schemas.round import (
+    RoundFinishRequest,
+    RoundResponse,
+)
+from services.match_event_service import (
+    match_event_service,
+)
 from services.match_service import (
     create_match,
     finish_round,
@@ -18,6 +25,10 @@ from services.match_service import (
     start_match,
     start_round,
 )
+from services.match_status_service import (
+    match_status_service,
+)
+
 
 router = APIRouter(
     prefix="/api/matches",
@@ -33,8 +44,11 @@ router = APIRouter(
 def create_match_endpoint(
     data: MatchCreate,
     db: Session = Depends(get_db),
-):
-    return create_match(db, data)
+) -> MatchResponse:
+    return create_match(
+        db,
+        data,
+    )
 
 
 @router.post(
@@ -61,6 +75,60 @@ def get_latest_punch_endpoint() -> LatestPunchResponse:
     )
 
 
+@router.post(
+    "/boxing-event",
+    status_code=status.HTTP_200_OK,
+)
+def handle_boxing_event_endpoint(
+    event: BoxingEventRequest,
+) -> dict[str, str]:
+    event_data = event.model_dump(
+        exclude_none=True,
+    )
+
+    print(
+        "📥 受信イベント:",
+        event_data,
+    )
+
+    match_status_service.handle_event(
+        event_data,
+    )
+
+    current_status = (
+        match_status_service.get_status()
+    )
+
+    print(
+        "✅ 更新後ステータス:",
+        current_status,
+    )
+
+    return {
+        "status": "success",
+        "event_type": event.type,
+    }
+
+
+@router.get(
+    "/match-status",
+    response_model=MatchStatusResponse,
+)
+def get_match_status_endpoint() -> MatchStatusResponse:
+    current_status = (
+        match_status_service.get_status()
+    )
+
+    print(
+        "📤 取得ステータス:",
+        current_status,
+    )
+
+    return MatchStatusResponse(
+        **current_status,
+    )
+
+
 @router.get(
     "/{match_id}",
     response_model=MatchResponse,
@@ -68,8 +136,11 @@ def get_latest_punch_endpoint() -> LatestPunchResponse:
 def get_match_endpoint(
     match_id: int,
     db: Session = Depends(get_db),
-):
-    return get_match(db, match_id)
+) -> MatchResponse:
+    return get_match(
+        db,
+        match_id,
+    )
 
 
 @router.post(
@@ -79,8 +150,11 @@ def get_match_endpoint(
 def start_match_endpoint(
     match_id: int,
     db: Session = Depends(get_db),
-):
-    return start_match(db, match_id)
+) -> MatchResponse:
+    return start_match(
+        db,
+        match_id,
+    )
 
 
 @router.post(
@@ -91,8 +165,11 @@ def start_match_endpoint(
 def start_round_endpoint(
     match_id: int,
     db: Session = Depends(get_db),
-):
-    return start_round(db, match_id)
+) -> RoundResponse:
+    return start_round(
+        db,
+        match_id,
+    )
 
 
 @router.post(
@@ -104,7 +181,7 @@ def finish_round_endpoint(
     round_id: int,
     data: RoundFinishRequest,
     db: Session = Depends(get_db),
-):
+) -> RoundResponse:
     return finish_round(
         db=db,
         match_id=match_id,
