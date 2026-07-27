@@ -2448,3 +2448,223 @@
   outline: 3px solid rgba(96, 165, 250, 0.45);
   outline-offset: 3px;
 }
+
+.match-page {
+  position: relative;
+}
+
+.match-page__arena {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 24px;
+}
+
+.match-page__player {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.match-page__referee {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.commentary-bubble {
+  position: absolute;
+  z-index: 20;
+  width: max-content;
+  max-width: min(280px, 70vw);
+  padding: 14px 18px;
+  border: 2px solid #111;
+  border-radius: 18px;
+  background: #fff;
+  color: #111;
+  font-size: clamp(0.85rem, 1.8vw, 1.1rem);
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: left;
+  box-shadow: 5px 5px 0 #111;
+  pointer-events: none;
+}
+
+/* PLAYER 1側 */
+
+.commentary-bubble--left {
+  top: -30px;
+  right: 10%;
+  animation: commentary-pop-left 0.2s ease-out;
+}
+
+.commentary-bubble--left::after {
+  position: absolute;
+  right: 34px;
+  bottom: -12px;
+  width: 20px;
+  height: 20px;
+  border-right: 2px solid #111;
+  border-bottom: 2px solid #111;
+  background: #fff;
+  content: "";
+  transform: rotate(45deg);
+}
+
+/* PLAYER 2側 */
+
+.commentary-bubble--right {
+  top: -30px;
+  left: 10%;
+  animation: commentary-pop-right 0.2s ease-out;
+}
+
+.commentary-bubble--right::after {
+  position: absolute;
+  left: 34px;
+  bottom: -12px;
+  width: 20px;
+  height: 20px;
+  border-right: 2px solid #111;
+  border-bottom: 2px solid #111;
+  background: #fff;
+  content: "";
+  transform: rotate(45deg);
+}
+
+/* 試合開始・終了など中央表示 */
+
+.commentary-bubble--center {
+  top: 12%;
+  left: 50%;
+  animation: commentary-pop-center 0.2s ease-out;
+  transform: translateX(-50%);
+}
+
+/* 吹き出し表示アニメーション */
+
+@keyframes commentary-pop-left {
+  from {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.85);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes commentary-pop-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px) scale(0.85);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes commentary-pop-center {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.85);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+/* スマホ対応 */
+
+@media (max-width: 700px) {
+  .match-page__arena {
+    gap: 8px;
+  }
+
+  .commentary-bubble {
+    max-width: 170px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-size: 0.75rem;
+    box-shadow: 3px 3px 0 #111;
+  }
+
+  .commentary-bubble--left {
+    top: -20px;
+    right: 0;
+  }
+
+  .commentary-bubble--right {
+    top: -20px;
+    left: 0;
+  }
+
+  .commentary-bubble--center {
+    top: 8%;
+  }
+}
+
+.match-page {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #080b12;
+}
+
+.match-page__arena {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 340px) minmax(180px, 1fr);
+  align-items: end;
+  width: min(1180px, 94vw);
+  height: min(680px, 78vh);
+  margin: 0 auto;
+  padding: 24px 32px 90px;
+  gap: 24px;
+}
+
+.match-page__player {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.match-page__referee {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+}
+
+.match-page__referee-image {
+  width: min(320px, 26vw);
+  max-height: 70vh;
+  object-fit: contain;
+}
+
+.match-page__character {
+  width: min(260px, 23vw);
+  max-height: 52vh;
+  object-fit: contain;
+}
+
+.match-page__finish-button {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  z-index: 30;
+}
