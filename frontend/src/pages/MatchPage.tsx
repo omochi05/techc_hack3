@@ -26,8 +26,7 @@ import {
 import type {
   MatchEvent,
   MatchPlayer,
-} from "../types/matchEvent";
-
+} from "../types/match";
 import {
   createComboEvent,
   createMatchEndEvent,
