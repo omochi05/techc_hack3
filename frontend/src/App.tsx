@@ -6,6 +6,7 @@ import HealthPage from "./pages/HealthPage";
 import MatchPage from "./pages/MatchPage";
 import ResultPage from "./pages/ResultPage";
 import TopPage from "./pages/TopPage";
+import type { MatchResult } from "./types/matchResult";
 
 type Screen =
   | "top"
@@ -16,14 +17,22 @@ type Screen =
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("top");
+  const [matchResult, setMatchResult] =
+    useState<MatchResult | null>(null);
+
+  const handleStart = (): void => {
+    setMatchResult(null);
+    setScreen("connection");
+  };
+
+  const handleMatchFinish = (result: MatchResult): void => {
+    setMatchResult(result);
+    setScreen("result");
+  };
 
   switch (screen) {
     case "top":
-      return (
-        <TopPage
-          onStart={() => setScreen("connection")}
-        />
-      );
+      return <TopPage onStart={handleStart} />;
 
     case "connection":
       return (
@@ -33,15 +42,16 @@ export default function App() {
       );
 
     case "match":
-      return (
-        <MatchPage
-          onFinish={() => setScreen("result")}
-        />
-      );
+      return <MatchPage onFinish={handleMatchFinish} />;
 
     case "result":
+      if (matchResult === null) {
+        return <TopPage onStart={handleStart} />;
+      }
+
       return (
         <ResultPage
+          result={matchResult}
           onNext={() => setScreen("health")}
         />
       );
@@ -49,15 +59,14 @@ export default function App() {
     case "health":
       return (
         <HealthPage
-          onBackToTop={() => setScreen("top")}
+          onBackToTop={() => {
+            setMatchResult(null);
+            setScreen("top");
+          }}
         />
       );
 
     default:
-      return (
-        <TopPage
-          onStart={() => setScreen("connection")}
-        />
-      );
+      return <TopPage onStart={handleStart} />;
   }
 }
