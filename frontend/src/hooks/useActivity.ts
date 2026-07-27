@@ -47,10 +47,12 @@ const initialActivityForm: ActivityFormData = {
 };
 
 export function useActivity() {
-  const [character, setCharacter] =
-    useState<CharacterStatus>(
-      initialCharacter,
-    );
+  const [
+    character,
+    setCharacter,
+  ] = useState<CharacterStatus>(
+    initialCharacter,
+  );
 
   const [
     activityForm,
@@ -70,13 +72,14 @@ export function useActivity() {
   const [
     analysisResult,
     setAnalysisResult,
-  ] =
-    useState<AnalysisResult | null>(
-      null,
-    );
+  ] = useState<AnalysisResult | null>(
+    null,
+  );
 
-  const [message, setMessage] =
-    useState("");
+  const [
+    message,
+    setMessage,
+  ] = useState("");
 
   const [
     messageType,
@@ -267,10 +270,21 @@ export function useActivity() {
       activityForm.sleepHours,
     );
 
+    const heartRate =
+      activityForm.heartRate === ""
+        ? null
+        : Number(
+            activityForm.heartRate,
+          );
+
     if (
       Number.isNaN(steps) ||
       Number.isNaN(studyMinutes) ||
-      Number.isNaN(sleepHours)
+      Number.isNaN(sleepHours) ||
+      (
+        heartRate !== null &&
+        Number.isNaN(heartRate)
+      )
     ) {
       setMessage(
         "数値項目を正しく入力してください。",
@@ -284,7 +298,11 @@ export function useActivity() {
     if (
       steps < 0 ||
       studyMinutes < 0 ||
-      sleepHours < 0
+      sleepHours < 0 ||
+      (
+        heartRate !== null &&
+        heartRate < 0
+      )
     ) {
       setMessage(
         "0以上の数値を入力してください。",

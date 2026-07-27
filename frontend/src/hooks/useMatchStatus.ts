@@ -6,11 +6,11 @@ import {
 
 import {
   getMatchStatus,
-} from "../api/matchStatusApi";
+} from "../api/matchApi";
 
 import type {
   MatchStatus,
-} from "../types/matchStatus";
+} from "../types/match";
 
 const MATCH_STATUS_POLLING_INTERVAL = 1000;
 
@@ -21,8 +21,7 @@ type UseMatchStatusResult = {
   refreshMatchStatus: () => Promise<void>;
 };
 
-export function useMatchStatus():
-UseMatchStatusResult {
+export function useMatchStatus(): UseMatchStatusResult {
   const [
     matchStatus,
     setMatchStatus,
@@ -41,10 +40,13 @@ UseMatchStatusResult {
   const refreshMatchStatus =
     useCallback(async (): Promise<void> => {
       try {
-        const status =
+        const latestMatchStatus =
           await getMatchStatus();
 
-        setMatchStatus(status);
+        setMatchStatus(
+          latestMatchStatus,
+        );
+
         setError(null);
       } catch (requestError) {
         console.error(

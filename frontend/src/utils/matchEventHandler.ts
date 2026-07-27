@@ -1,7 +1,7 @@
 import type {
   MatchEvent,
   MatchPlayer,
-} from "../types/matchEvent";
+} from "../types/match";
 
 const STRONG_PUNCH_THRESHOLD = 80;
 
@@ -40,13 +40,10 @@ export function createLowHealthEvent(
   player1Hp: number,
   player2Hp: number,
 ): MatchEvent {
-  let player: MatchPlayer;
-
-  if (player1Hp <= player2Hp) {
-    player = "playerA";
-  } else {
-    player = "playerB";
-  }
+  const player: MatchPlayer =
+    player1Hp <= player2Hp
+      ? "playerA"
+      : "playerB";
 
   return {
     type: "low_health",

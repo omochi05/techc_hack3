@@ -3,56 +3,57 @@ import type {
   AnalysisResult,
   StatusCalculationResponse,
 } from "../types/activity";
-import {
-  API_BASE_URL,
-  createAuthHeaders,
-  getApiErrorMessage,
-} from "./http";
 
-export const calculateStatus = async (
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ??
+  "http://127.0.0.1:8000";
+
+export async function calculateStatus(
   payload: ActivityPayload,
-): Promise<StatusCalculationResponse> => {
+): Promise<StatusCalculationResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/api/status/calculate`,
+    `${API_BASE_URL}/api/activity/calculate-status`,
     {
       method: "POST",
-      headers: createAuthHeaders(true),
+      headers: {
+        Accept: "application/json",
+        "Content-Type":
+          "application/json",
+      },
       body: JSON.stringify(payload),
     },
   );
 
   if (!response.ok) {
     throw new Error(
-      await getApiErrorMessage(
-        response,
-        "ステータスの計算に失敗しました。",
-      ),
+      `ステータス計算に失敗しました: ${response.status}`,
     );
   }
 
-  return (await response.json()) as StatusCalculationResponse;
-};
+  return response.json() as Promise<StatusCalculationResponse>;
+}
 
-export const analyzeActivity = async (
+export async function analyzeActivity(
   payload: ActivityPayload,
-): Promise<AnalysisResult> => {
+): Promise<AnalysisResult> {
   const response = await fetch(
     `${API_BASE_URL}/api/activity/analyze`,
     {
       method: "POST",
-      headers: createAuthHeaders(true),
+      headers: {
+        Accept: "application/json",
+        "Content-Type":
+          "application/json",
+      },
       body: JSON.stringify(payload),
     },
   );
 
   if (!response.ok) {
     throw new Error(
-      await getApiErrorMessage(
-        response,
-        "活動データの分析に失敗しました。",
-      ),
+      `活動分析に失敗しました: ${response.status}`,
     );
   }
 
-  return (await response.json()) as AnalysisResult;
-};
+  return response.json() as Promise<AnalysisResult>;
+}
