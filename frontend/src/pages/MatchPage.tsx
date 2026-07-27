@@ -13,16 +13,11 @@ import {
   generateCommentary,
   type CommentaryRequest,
 } from "../api/commentaryApi";
-
 import {
   getLatestPunch,
   type PunchResponse,
 } from "../api/matchApi";
-
-import {
-  useMatchStatus,
-} from "../hooks/useMatchStatus";
-
+import { useMatchStatus } from "../hooks/useMatchStatus";
 import type {
   MatchEvent,
   MatchPlayer,
@@ -43,8 +38,130 @@ type CommentaryBubble = {
   text: string;
 };
 
+type PlayerPanelProps = {
+  side: "one" | "two";
+  name: string;
+  image: string;
+  hp: number;
+  totalPunches: number;
+  comboCount: number;
+  commentary?: string;
+  disabled?: boolean;
+  onAttack: () => void;
+  onCombo: () => void;
+};
+
 const COMMENTARY_DISPLAY_TIME = 3000;
 const PUNCH_POLLING_INTERVAL = 1000;
+const FINISH_DELAY = 1000;
+const MAX_HP = 100;
+const INITIAL_MATCH_TIME = 45;
+const DAMAGE_DIVISOR = 10;
+const COMBO_TEST_DAMAGE_PER_HIT = 6;
+
+function clampHp(hp: number): number {
+  return Math.min(MAX_HP, Math.max(0, hp));
+}
+
+function PlayerPanel({
+  side,
+  name,
+  image,
+  hp,
+  totalPunches,
+  comboCount,
+  commentary,
+  disabled = false,
+  onAttack,
+  onCombo,
+}: PlayerPanelProps) {
+  const safeHp = clampHp(hp);
+
+  return (
+    <article
+      className={`match-page__player-card match-page__player-card--${side}`}
+      aria-label={`${name}の試合情報`}
+    >
+      {commentary !== undefined && (
+        <div
+          className={`commentary-bubble commentary-bubble--${
+            side === "one" ? "left" : "right"
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          {commentary}
+        </div>
+      )}
+
+      <p className="match-page__fighter-label">FIGHTER</p>
+      <h2 className="match-page__player-name">{name}</h2>
+
+      <div className="match-page__hp-section">
+        <div className="match-page__hp-label">
+          <span>HP</span>
+          <span className="match-page__hp-value">{safeHp}</span>
+        </div>
+
+        <div
+          className="match-page__hp-bar"
+          role="progressbar"
+          aria-label={`${name} HP`}
+          aria-valuemin={0}
+          aria-valuemax={MAX_HP}
+          aria-valuenow={safeHp}
+        >
+          <div
+            className="match-page__hp-fill"
+            style={{ width: `${safeHp}%` }}
+          />
+        </div>
+      </div>
+
+      <img
+        src={image}
+        alt={`${name}のキャラクター`}
+        className="match-page__character"
+      />
+
+      <dl className="match-page__stats">
+        <div className="match-page__stat-box">
+          <dt className="match-page__stat-label">パンチ数</dt>
+          <dd className="match-page__stat-value">
+            {totalPunches}
+          </dd>
+        </div>
+
+        <div className="match-page__stat-box">
+          <dt className="match-page__stat-label">コンボ数</dt>
+          <dd className="match-page__stat-value">
+            {comboCount}
+          </dd>
+        </div>
+      </dl>
+
+      <div className="match-page__controls">
+        <button
+          type="button"
+          className="match-page__attack-button"
+          onClick={onAttack}
+          disabled={disabled}
+        >
+          攻撃テスト
+        </button>
+
+        <button
+          type="button"
+          className="match-page__attack-button"
+          onClick={onCombo}
+          disabled={disabled}
+        >
+          コンボテスト
+        </button>
+      </div>
+    </article>
+  );
+}
 
 export default function MatchPage({
   onFinish,
@@ -55,29 +172,39 @@ export default function MatchPage({
     error: matchStatusError,
   } = useMatchStatus();
 
-  const [
-    commentaryBubble,
-    setCommentaryBubble,
-  ] = useState<CommentaryBubble | null>(null);
+  const [commentaryBubble, setCommentaryBubble] =
+    useState<CommentaryBubble | null>(null);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [displayTimeLeft, setDisplayTimeLeft] =
+    useState(INITIAL_MATCH_TIME);
+  const [isTimerRunning, setIsTimerRunning] = useState(true);
+  const [localHp, setLocalHp] = useState({
+    playerA: MAX_HP,
+    playerB: MAX_HP,
+  });
+  const [localPunches, setLocalPunches] = useState({
+    playerA: 0,
+    playerB: 0,
+  });
+  const [consecutiveHits, setConsecutiveHits] = useState({
+    playerA: 0,
+    playerB: 0,
+  });
 
-  const commentaryTimerRef =
-    useRef<number | null>(null);
+  const commentaryTimerRef = useRef<number | null>(null);
+  const finishTimerRef = useRef<number | null>(null);
+  const lastProcessedPunchIdRef = useRef<number | null>(null);
+  const isPollingRef = useRef(false);
+  const hasInitializedStatusRef = useRef(false);
 
-  const lastProcessedPunchIdRef =
-    useRef<number | null>(null);
+  const hideCommentaryBubble = useCallback((): void => {
+    if (commentaryTimerRef.current !== null) {
+      window.clearTimeout(commentaryTimerRef.current);
+      commentaryTimerRef.current = null;
+    }
 
-  const hideCommentaryBubble =
-    useCallback((): void => {
-      if (commentaryTimerRef.current !== null) {
-        window.clearTimeout(
-          commentaryTimerRef.current,
-        );
-
-        commentaryTimerRef.current = null;
-      }
-
-      setCommentaryBubble(null);
-    }, []);
+    setCommentaryBubble(null);
+  }, []);
 
   const showCommentaryBubble = useCallback(
     (
@@ -85,61 +212,41 @@ export default function MatchPage({
       text: string,
     ): void => {
       if (commentaryTimerRef.current !== null) {
-        window.clearTimeout(
-          commentaryTimerRef.current,
-        );
+        window.clearTimeout(commentaryTimerRef.current);
       }
 
-      setCommentaryBubble({
-        player,
-        text,
-      });
+      setCommentaryBubble({ player, text });
 
-      commentaryTimerRef.current =
-        window.setTimeout(() => {
-          setCommentaryBubble(null);
-          commentaryTimerRef.current = null;
-        }, COMMENTARY_DISPLAY_TIME);
+      commentaryTimerRef.current = window.setTimeout(() => {
+        setCommentaryBubble(null);
+        commentaryTimerRef.current = null;
+      }, COMMENTARY_DISPLAY_TIME);
     },
     [],
   );
 
-  const convertMatchEventToCommentaryRequest =
-    useCallback(
-      (
-        event: MatchEvent,
-      ): CommentaryRequest => {
-        return {
-          event_type: event.type,
-          player: event.player,
-          power: event.power,
-          combo_count: event.comboCount,
-          player1_hp: event.player1Hp,
-          player2_hp: event.player2Hp,
-          winner: event.winner,
-        };
-      },
-      [],
-    );
+  const convertMatchEventToCommentaryRequest = useCallback(
+    (event: MatchEvent): CommentaryRequest => ({
+      event_type: event.type,
+      player: event.player,
+      power: event.power,
+      combo_count: event.comboCount,
+      player1_hp: event.player1Hp,
+      player2_hp: event.player2Hp,
+      winner: event.winner,
+    }),
+    [],
+  );
 
   const handleMatchEvent = useCallback(
-    async (
-      event: MatchEvent,
-    ): Promise<void> => {
+    async (event: MatchEvent): Promise<void> => {
       try {
-        const request =
-          convertMatchEventToCommentaryRequest(event);
-
-        const response =
-          await generateCommentary(request);
-
-        const bubblePosition:
-          | MatchPlayer
-          | "center" =
-          event.player ?? "center";
+        const response = await generateCommentary(
+          convertMatchEventToCommentaryRequest(event),
+        );
 
         showCommentaryBubble(
-          bubblePosition,
+          event.player ?? "center",
           response.commentary,
         );
       } catch (error) {
@@ -155,301 +262,438 @@ export default function MatchPage({
     ],
   );
 
+  const calculateDamage = useCallback((power: number): number => {
+    return Math.max(1, Math.round(power / DAMAGE_DIVISOR));
+  }, []);
+
+  const registerHit = useCallback(
+    (player: MatchPlayer, power: number): void => {
+      const opponent: MatchPlayer =
+        player === "playerA" ? "playerB" : "playerA";
+      const damage = calculateDamage(power);
+
+      setLocalPunches((current) => ({
+        ...current,
+        [player]: current[player] + 1,
+      }));
+
+      setLocalHp((current) => ({
+        ...current,
+        [opponent]: clampHp(current[opponent] - damage),
+      }));
+
+      setConsecutiveHits((current) => ({
+        ...current,
+        [player]: current[player] + 1,
+        [opponent]: 0,
+      }));
+    },
+    [calculateDamage],
+  );
+
+  const registerComboSequence = useCallback(
+    (player: MatchPlayer, hitCount: number): void => {
+      const opponent: MatchPlayer =
+        player === "playerA" ? "playerB" : "playerA";
+      const totalDamage =
+        hitCount * COMBO_TEST_DAMAGE_PER_HIT;
+
+      setLocalPunches((current) => ({
+        ...current,
+        [player]: current[player] + hitCount,
+      }));
+
+      setLocalHp((current) => ({
+        ...current,
+        [opponent]: clampHp(
+          current[opponent] - totalDamage,
+        ),
+      }));
+
+      setConsecutiveHits((current) => ({
+        ...current,
+        [player]: current[player] + hitCount,
+        [opponent]: 0,
+      }));
+    },
+    [],
+  );
+
   const processReceivedPunch = useCallback(
-    (
-      punch: PunchResponse,
-    ): void => {
-      if (
-        lastProcessedPunchIdRef.current ===
-        punch.id
-      ) {
+    (punch: PunchResponse): void => {
+      if (lastProcessedPunchIdRef.current === punch.id) {
         return;
       }
 
-      lastProcessedPunchIdRef.current =
-        punch.id;
+      lastProcessedPunchIdRef.current = punch.id;
+      registerHit(punch.player, punch.power);
 
-      const event = createPunchEvent(
-        punch.player,
-        punch.power,
+      void handleMatchEvent(
+        createPunchEvent(punch.player, punch.power),
       );
-
-      void handleMatchEvent(event);
     },
-    [handleMatchEvent],
+    [handleMatchEvent, registerHit],
   );
 
-  const pollLatestPunch =
-    useCallback(async (): Promise<void> => {
-      try {
-        const response =
-          await getLatestPunch();
+  const pollLatestPunch = useCallback(async (): Promise<void> => {
+    if (isPollingRef.current || isFinishing) {
+      return;
+    }
 
-        if (response.punch === null) {
-          return;
-        }
+    isPollingRef.current = true;
 
-        processReceivedPunch(
-          response.punch,
-        );
-      } catch (error) {
-        console.error(
-          "最新パンチの取得に失敗しました",
-          error,
-        );
+    try {
+      const response = await getLatestPunch();
+
+      if (response.punch !== null) {
+        processReceivedPunch(response.punch);
       }
-    }, [processReceivedPunch]);
+    } catch (error) {
+      console.error(
+        "最新パンチの取得に失敗しました",
+        error,
+      );
+    } finally {
+      isPollingRef.current = false;
+    }
+  }, [isFinishing, processReceivedPunch]);
 
   useEffect(() => {
-    const event =
-      createMatchStartEvent();
-
-    void handleMatchEvent(event);
+    void handleMatchEvent(createMatchStartEvent());
   }, [handleMatchEvent]);
 
   useEffect(() => {
     void pollLatestPunch();
 
-    const pollingTimer =
-      window.setInterval(() => {
-        void pollLatestPunch();
-      }, PUNCH_POLLING_INTERVAL);
+    const pollingTimer = window.setInterval(() => {
+      void pollLatestPunch();
+    }, PUNCH_POLLING_INTERVAL);
 
     return () => {
-      window.clearInterval(
-        pollingTimer,
-      );
+      window.clearInterval(pollingTimer);
     };
   }, [pollLatestPunch]);
 
   useEffect(() => {
     return () => {
       hideCommentaryBubble();
+
+      if (finishTimerRef.current !== null) {
+        window.clearTimeout(finishTimerRef.current);
+      }
     };
   }, [hideCommentaryBubble]);
 
-  const handlePlayer1Attack = (): void => {
-    const event = createPunchEvent(
-      "playerA",
-      87,
-    );
+  useEffect(() => {
+    if (matchStatus === null) {
+      return;
+    }
 
-    void handleMatchEvent(event);
+    if (!hasInitializedStatusRef.current) {
+      setDisplayTimeLeft(matchStatus.time_left);
+      hasInitializedStatusRef.current = true;
+    }
+
+    setLocalPunches((current) => ({
+      playerA: Math.max(
+        current.playerA,
+        matchStatus.player1_total_punches,
+      ),
+      playerB: Math.max(
+        current.playerB,
+        matchStatus.player2_total_punches,
+      ),
+    }));
+
+  }, [matchStatus]);
+
+  useEffect(() => {
+    if (!isTimerRunning || isFinishing) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setDisplayTimeLeft((current) => {
+        if (current <= 1) {
+          window.clearInterval(timer);
+          setIsTimerRunning(false);
+          return 0;
+        }
+
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [isFinishing, isTimerRunning]);
+
+  const handlePlayer1Attack = (): void => {
+    if (!isFinishing) {
+      registerHit("playerA", 87);
+      void handleMatchEvent(
+        createPunchEvent("playerA", 87),
+      );
+    }
   };
 
   const handlePlayer2Attack = (): void => {
-    const event = createPunchEvent(
-      "playerB",
-      72,
-    );
-
-    void handleMatchEvent(event);
+    if (!isFinishing) {
+      registerHit("playerB", 72);
+      void handleMatchEvent(
+        createPunchEvent("playerB", 72),
+      );
+    }
   };
 
   const handlePlayer1Combo = (): void => {
-    const event = createComboEvent(
-      "playerA",
-      3,
-    );
-
-    void handleMatchEvent(event);
+    if (!isFinishing) {
+      registerComboSequence("playerA", 3);
+      void handleMatchEvent(
+        createComboEvent("playerA", 3),
+      );
+    }
   };
 
   const handlePlayer2Combo = (): void => {
-    const event = createComboEvent(
-      "playerB",
-      4,
-    );
-
-    void handleMatchEvent(event);
+    if (!isFinishing) {
+      registerComboSequence("playerB", 4);
+      void handleMatchEvent(
+        createComboEvent("playerB", 4),
+      );
+    }
   };
 
-  const handleFinish = (): void => {
+  const handleFinish = useCallback((): void => {
+    if (isFinishing) {
+      return;
+    }
+
+    setIsFinishing(true);
+    setIsTimerRunning(false);
     hideCommentaryBubble();
 
-    const event = createMatchEndEvent(
-      "playerA",
+    const player1Hp = localHp.playerA;
+    const player2Hp = localHp.playerB;
+    const winner: MatchPlayer =
+      player2Hp > player1Hp ? "playerB" : "playerA";
+
+    void handleMatchEvent(
+      createMatchEndEvent(winner),
     );
 
-    void handleMatchEvent(event);
-
-    window.setTimeout(() => {
+    finishTimerRef.current = window.setTimeout(() => {
       onFinish();
-    }, 1000);
-  };
+    }, FINISH_DELAY);
+  }, [
+    handleMatchEvent,
+    hideCommentaryBubble,
+    isFinishing,
+    localHp.playerA,
+    localHp.playerB,
+    onFinish,
+  ]);
+
+  useEffect(() => {
+    const isKnockout =
+      localHp.playerA === 0 ||
+      localHp.playerB === 0;
+
+    if (
+      (displayTimeLeft === 0 || isKnockout) &&
+      !isFinishing
+    ) {
+      handleFinish();
+    }
+  }, [
+    displayTimeLeft,
+    handleFinish,
+    isFinishing,
+    localHp.playerA,
+    localHp.playerB,
+  ]);
+
+  const currentRound = matchStatus?.current_round ?? 1;
+  const isActive = isTimerRunning && !isFinishing;
+  const player1Punches = Math.max(
+    localPunches.playerA,
+    matchStatus?.player1_total_punches ?? 0,
+  );
+  const player2Punches = Math.max(
+    localPunches.playerB,
+    matchStatus?.player2_total_punches ?? 0,
+  );
+  const player1ComboCount = Math.max(
+    consecutiveHits.playerA - 1,
+    0,
+  );
+  const player2ComboCount = Math.max(
+    consecutiveHits.playerB - 1,
+    0,
+  );
 
   return (
     <main className="match-page">
-      <section className="match-page__status">
-        {isMatchStatusLoading && (
-          <p className="match-page__status-message">
-            試合情報を読み込んでいます...
+      <header className="match-page__header">
+        <div className="match-page__brand">
+          IoT BOXING ARENA
+        </div>
+
+        <div className="match-page__status-center">
+          <p className="match-page__round">
+            ROUND {currentRound}
           </p>
-        )}
 
-        {matchStatusError !== null && (
-          <p className="match-page__status-error">
-            {matchStatusError}
+          <p className="match-page__timer">
+            {displayTimeLeft}
+            <span>SEC</span>
           </p>
-        )}
 
-        {matchStatus !== null && (
-          <>
-            <div className="match-page__round-info">
-              <span>
-                ROUND {matchStatus.current_round}
-              </span>
+          <p className="match-page__state">
+            {isFinishing
+              ? "試合終了処理中"
+              : isActive
+                ? "試合中"
+                : "試合停止中"}
+          </p>
+        </div>
 
-              <span>
-                残り {matchStatus.time_left} 秒
-              </span>
+        <div className="match-page__header-actions">
+          <button
+            type="button"
+            className="match-page__timer-button"
+            onClick={() => {
+              setIsTimerRunning((current) => !current);
+            }}
+            disabled={isFinishing}
+          >
+            {isTimerRunning ? "一時停止" : "再開"}
+          </button>
 
-              <span>
-                {matchStatus.is_active
-                  ? "試合中"
-                  : "試合停止中"}
-              </span>
-            </div>
+          <button
+            type="button"
+            className="match-page__finish-button"
+            onClick={handleFinish}
+            disabled={isFinishing}
+          >
+            {isFinishing
+              ? "終了処理中..."
+              : "試合を終了する"}
+          </button>
+        </div>
+      </header>
 
-            <div className="match-page__player-statuses">
-              <div className="match-page__player-status">
-                <h2>PLAYER 1</h2>
+      {(isMatchStatusLoading || matchStatusError !== null) && (
+        <aside
+          className="match-page__notice"
+          role="status"
+          aria-live="polite"
+        >
+          {isMatchStatusLoading && (
+            <p className="match-page__status-message">
+              試合情報を読み込んでいます...
+            </p>
+          )}
 
-                <p>
-                  HP: {matchStatus.player1_hp}
-                </p>
+          {matchStatusError !== null && (
+            <p className="match-page__status-error">
+              {matchStatusError}
+            </p>
+          )}
+        </aside>
+      )}
 
-                <p>
-                  パンチ数:{" "}
-                  {
-                    matchStatus
-                      .player1_total_punches
-                  }
-                </p>
-
-                <p>
-                  強打数:{" "}
-                  {
-                    matchStatus
-                      .player1_strong_hits
-                  }
-                </p>
-              </div>
-
-              <div className="match-page__player-status">
-                <h2>PLAYER 2</h2>
-
-                <p>
-                  HP: {matchStatus.player2_hp}
-                </p>
-
-                <p>
-                  パンチ数:{" "}
-                  {
-                    matchStatus
-                      .player2_total_punches
-                  }
-                </p>
-
-                <p>
-                  強打数:{" "}
-                  {
-                    matchStatus
-                      .player2_strong_hits
-                  }
-                </p>
-              </div>
-            </div>
-          </>
-        )}
-      </section>
-
-      {commentaryBubble?.player ===
-        "center" && (
-        <div className="commentary-bubble commentary-bubble--center">
+      {commentaryBubble?.player === "center" && (
+        <div
+          className="commentary-bubble commentary-bubble--center"
+          role="status"
+          aria-live="polite"
+        >
           {commentaryBubble.text}
         </div>
       )}
 
-      <section className="match-page__arena">
-        <div className="match-page__player match-page__player--one">
-          {commentaryBubble?.player ===
-            "playerA" && (
-            <div className="commentary-bubble commentary-bubble--left">
-              {commentaryBubble.text}
-            </div>
-          )}
+      <section
+        className="match-page__arena"
+        aria-label="ボクシング試合エリア"
+      >
+        <PlayerPanel
+          side="one"
+          name="PLAYER 1"
+          image={heroImage}
+          hp={localHp.playerA}
+          totalPunches={player1Punches}
+          comboCount={player1ComboCount}
+          commentary={
+            commentaryBubble?.player === "playerA"
+              ? commentaryBubble.text
+              : undefined
+          }
+          disabled={
+            isFinishing ||
+            !isTimerRunning ||
+            localHp.playerA === 0 ||
+            localHp.playerB === 0
+          }
+          onAttack={handlePlayer1Attack}
+          onCombo={handlePlayer1Combo}
+        />
 
-          <img
-            src={heroImage}
-            alt="プレイヤー1"
-            className="match-page__character"
-          />
-
-          <button
-            type="button"
-            className="match-page__attack-button"
-            onClick={handlePlayer1Attack}
+        <section
+          className="match-page__referee"
+          aria-label="対戦中央エリア"
+        >
+          <div
+            className="match-page__vs"
+            aria-hidden="true"
           >
-            PLAYER 1 攻撃テスト
-          </button>
+            VS
+          </div>
 
-          <button
-            type="button"
-            className="match-page__attack-button"
-            onClick={handlePlayer1Combo}
-          >
-            PLAYER 1 コンボテスト
-          </button>
-        </div>
-
-        <div className="match-page__referee">
           <img
             src={refereeImage}
             alt="レフェリー"
             className="match-page__referee-image"
           />
-        </div>
 
-        <div className="match-page__player match-page__player--two">
-          {commentaryBubble?.player ===
-            "playerB" && (
-            <div className="commentary-bubble commentary-bubble--right">
-              {commentaryBubble.text}
-            </div>
-          )}
+          <p className="match-page__battle-label">
+            SENSOR BATTLE
+          </p>
+        </section>
 
-          <img
-            src={hero2Image}
-            alt="プレイヤー2"
-            className="match-page__character"
-          />
-
-          <button
-            type="button"
-            className="match-page__attack-button"
-            onClick={handlePlayer2Attack}
-          >
-            PLAYER 2 攻撃テスト
-          </button>
-
-          <button
-            type="button"
-            className="match-page__attack-button"
-            onClick={handlePlayer2Combo}
-          >
-            PLAYER 2 コンボテスト
-          </button>
-        </div>
+        <PlayerPanel
+          side="two"
+          name="PLAYER 2"
+          image={hero2Image}
+          hp={localHp.playerB}
+          totalPunches={player2Punches}
+          comboCount={player2ComboCount}
+          commentary={
+            commentaryBubble?.player === "playerB"
+              ? commentaryBubble.text
+              : undefined
+          }
+          disabled={
+            isFinishing ||
+            !isTimerRunning ||
+            localHp.playerA === 0 ||
+            localHp.playerB === 0
+          }
+          onAttack={handlePlayer2Attack}
+          onCombo={handlePlayer2Combo}
+        />
       </section>
 
-      <button
-        type="button"
-        className="match-page__finish-button"
-        onClick={handleFinish}
-      >
-        試合を終了する
-      </button>
+      <footer className="match-page__footer">
+        <span className="match-page__commentary-area">
+          ESP32 / FASTAPI / REACT
+        </span>
+
+        <span className="match-page__live-status">
+          LIVE MATCH STATUS
+        </span>
+      </footer>
     </main>
   );
 }
