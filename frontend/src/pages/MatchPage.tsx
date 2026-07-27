@@ -14,6 +14,11 @@ import {
   type CommentaryRequest,
 } from "../api/commentaryApi";
 
+import {
+  getLatestPunch,
+  type PunchResponse,
+} from "../api/matchApi";
+
 import type {
   MatchEvent,
   MatchPlayer,
@@ -36,6 +41,7 @@ type CommentaryBubble = {
 };
 
 const COMMENTARY_DISPLAY_TIME = 3000;
+const PUNCH_POLLING_INTERVAL = 1000;
 
 export default function MatchPage({
   onFinish,
@@ -46,6 +52,9 @@ export default function MatchPage({
   ] = useState<CommentaryBubble | null>(null);
 
   const commentaryTimerRef =
+    useRef<number | null>(null);
+
+  const lastProcessedPunchIdRef =
     useRef<number | null>(null);
 
   const hideCommentaryBubble =
@@ -137,11 +146,72 @@ export default function MatchPage({
     ],
   );
 
+  const processReceivedPunch = useCallback(
+    (
+      punch: PunchResponse,
+    ): void => {
+      if (
+        lastProcessedPunchIdRef.current ===
+        punch.id
+      ) {
+        return;
+      }
+
+      lastProcessedPunchIdRef.current =
+        punch.id;
+
+      const event = createPunchEvent(
+        punch.player,
+        punch.power,
+      );
+
+      void handleMatchEvent(event);
+    },
+    [handleMatchEvent],
+  );
+
+  const pollLatestPunch =
+    useCallback(async (): Promise<void> => {
+      try {
+        const response =
+          await getLatestPunch();
+
+        if (response.punch === null) {
+          return;
+        }
+
+        processReceivedPunch(
+          response.punch,
+        );
+      } catch (error) {
+        console.error(
+          "最新パンチの取得に失敗しました",
+          error,
+        );
+      }
+    }, [processReceivedPunch]);
+
   useEffect(() => {
-    const event = createMatchStartEvent();
+    const event =
+      createMatchStartEvent();
 
     void handleMatchEvent(event);
   }, [handleMatchEvent]);
+
+  useEffect(() => {
+    void pollLatestPunch();
+
+    const pollingTimer =
+      window.setInterval(() => {
+        void pollLatestPunch();
+      }, PUNCH_POLLING_INTERVAL);
+
+    return () => {
+      window.clearInterval(
+        pollingTimer,
+      );
+    };
+  }, [pollLatestPunch]);
 
   useEffect(() => {
     return () => {

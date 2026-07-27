@@ -1,6 +1,10 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+MatchPlayer = Literal["playerA", "playerB"]
 
 
 class MatchCreate(BaseModel):
@@ -28,3 +32,23 @@ class MatchResponse(BaseModel):
     started_at: datetime | None
     finished_at: datetime | None
     created_at: datetime
+
+
+class PunchCreateRequest(BaseModel):
+    player: MatchPlayer
+
+    power: float = Field(
+        ge=0,
+        description="パンチの威力",
+    )
+
+
+class PunchResponse(BaseModel):
+    id: int
+    player: MatchPlayer
+    power: float
+    timestamp: datetime
+
+
+class LatestPunchResponse(BaseModel):
+    punch: PunchResponse | None
