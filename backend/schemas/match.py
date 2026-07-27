@@ -6,6 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 MatchPlayer = Literal["playerA", "playerB"]
 
+BoxingEventType = Literal[
+    "punch",
+    "timer",
+    "round_start",
+    "round_end",
+]
+
+
 
 class MatchCreate(BaseModel):
     player1_name: str = Field(
@@ -52,3 +60,64 @@ class PunchResponse(BaseModel):
 
 class LatestPunchResponse(BaseModel):
     punch: PunchResponse | None
+
+class BoxingEventRequest(BaseModel):
+    type: BoxingEventType
+
+    round: int | None = Field(
+        default=None,
+        ge=1,
+    )
+
+    playerId: int | None = Field(
+        default=None,
+        ge=1,
+        le=2,
+    )
+
+    accelX: float | None = Field(
+        default=None,
+        ge=0,
+    )
+
+    hp: int | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    timeLeft: int | None = Field(
+        default=None,
+        ge=0,
+    )
+
+    reason: str | None = None
+
+    hpP1: int | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    hpP2: int | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+
+class MatchStatusResponse(BaseModel):
+    current_round: int
+    is_active: bool
+    time_left: int
+
+    player1_hp: int
+    player2_hp: int
+
+    player1_total_punches: int
+    player2_total_punches: int
+
+    player1_strong_hits: int
+    player2_strong_hits: int
+
+    logs: list[str]
