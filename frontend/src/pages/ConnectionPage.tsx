@@ -1,7 +1,12 @@
-import { useMemo, useState } from "react";
+import {
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import heroImage from "../assets/hero.png";
 import hero2Image from "../assets/hero2.png";
+import RobotMotion from "../components/RobotMotion";
 
 type ConnectionPageProps = {
   onConnected: () => void;
@@ -17,6 +22,8 @@ type PlayerConnectionCardProps = {
   playerName: string;
   deviceId: string;
   imageSrc: string;
+  /** 指定するとキャラ画像の代わりにこれを表示(RobotMotion用) */
+  character?: ReactNode;
   accentColor: "blue" | "red";
   status: ConnectionStatus;
   onConnect: () => void;
@@ -33,6 +40,7 @@ function PlayerConnectionCard({
   playerName,
   deviceId,
   imageSrc,
+  character,
   accentColor,
   status,
   onConnect,
@@ -84,11 +92,13 @@ function PlayerConnectionCard({
           aria-hidden="true"
         />
 
-        <img
-          src={imageSrc}
-          alt={`${playerName}のキャラクター`}
-          className="connection-player-card__character"
-        />
+        {character ?? (
+          <img
+            src={imageSrc}
+            alt={`${playerName}のキャラクター`}
+            className="connection-player-card__character"
+          />
+        )}
       </div>
 
       <dl className="connection-device-info">
@@ -197,6 +207,9 @@ export default function ConnectionPage({
             playerName="playerA"
             deviceId="glove_1"
             imageSrc={heroImage}
+            character={
+              <RobotMotion mode="relax" width={220} />
+            }
             accentColor="blue"
             status={glove1Status}
             onConnect={() => {
@@ -216,6 +229,9 @@ export default function ConnectionPage({
             playerName="playerB"
             deviceId="glove_2"
             imageSrc={hero2Image}
+            character={
+              <RobotMotion mode="relax" width={220} />
+            }
             accentColor="red"
             status={glove2Status}
             onConnect={() => {

@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 
 import heroImage from "../assets/hero.png";
@@ -32,6 +33,9 @@ import {
   createMatchStartEvent,
   createPunchEvent,
 } from "../utils/matchEventHandler";
+import RobotMotion, {
+  type RobotMotionHandle,
+} from "../components/RobotMotion";
 
 type MatchPageProps = {
   onFinish: (result: MatchResult) => void;
@@ -46,6 +50,8 @@ type PlayerPanelProps = {
   side: "one" | "two";
   name: string;
   image: string;
+  /** 指定するとキャラ画像の代わりにこれを表示(RobotMotion用) */
+  character?: ReactNode;
   hp: number;
   totalPunches: number;
   comboCount: number;
@@ -70,6 +76,7 @@ function PlayerPanel({
   side,
   name,
   image,
+  character,
   hp,
   totalPunches,
   comboCount,
@@ -121,11 +128,13 @@ function PlayerPanel({
         </div>
       </div>
 
-      <img
-        src={image}
-        alt={`${name}のキャラクター`}
-        className="match-page__character"
-      />
+      {character ?? (
+        <img
+          src={image}
+          alt={`${name}のキャラクター`}
+          className="match-page__character"
+        />
+      )}
 
       <dl className="match-page__stats">
         <div className="match-page__stat-box">
@@ -204,6 +213,32 @@ export default function MatchPage({
   const isPollingRef = useRef(false);
   const hasInitializedStatusRef = useRef(false);
 
+  // ── キャラモーション用 ──
+  const robotARef = useRef<RobotMotionHandle>(null);
+  const robotBRef = useRef<RobotMotionHandle>(null);
+
+  // 攻撃側にパンチ、被弾側に被弾モーションを再生
+  const playPunchMotion = useCallback(
+    (attacker: MatchPlayer): void => {
+      const atk = attacker === "playerA" ? robotARef : robotBRef;
+      const def = attacker === "playerA" ? robotBRef : robotARef;
+      atk.current?.play("punch");
+      def.current?.play("hit");
+    },
+    [],
+  );
+
+  // 攻撃側に攻撃コンボ、被弾側に被弾モーションを再生
+  const playComboMotion = useCallback(
+    (attacker: MatchPlayer): void => {
+      const atk = attacker === "playerA" ? robotARef : robotBRef;
+      const def = attacker === "playerA" ? robotBRef : robotARef;
+      atk.current?.play("atkCombo");
+      def.current?.play("hit");
+    },
+    [],
+  );
+
   const hideCommentaryBubble = useCallback((): void => {
     if (commentaryTimerRef.current !== null) {
       window.clearTimeout(commentaryTimerRef.current);
@@ -279,6 +314,9 @@ export default function MatchPage({
         player === "playerA" ? "playerB" : "playerA";
       const damage = calculateDamage(power);
 
+      // モーション再生(攻撃側パンチ・被弾側被弾)
+      playPunchMotion(player);
+
       setLocalPunches((current) => ({
         ...current,
         [player]: current[player] + 1,
@@ -295,7 +333,7 @@ export default function MatchPage({
         [opponent]: 0,
       }));
     },
-    [calculateDamage],
+    [calculateDamage, playPunchMotion],
   );
 
   const registerComboSequence = useCallback(
@@ -304,6 +342,9 @@ export default function MatchPage({
         player === "playerA" ? "playerB" : "playerA";
       const totalDamage =
         hitCount * COMBO_TEST_DAMAGE_PER_HIT;
+
+      // モーション再生(攻撃側コンボ・被弾側被弾)
+      playComboMotion(player);
 
       setLocalPunches((current) => ({
         ...current,
@@ -323,7 +364,7 @@ export default function MatchPage({
         [opponent]: 0,
       }));
     },
-    [],
+    [playComboMotion],
   );
 
   const processReceivedPunch = useCallback(
@@ -690,6 +731,13 @@ export default function MatchPage({
           side="one"
           name="PLAYER 1"
           image={heroImage}
+          character={
+            <RobotMotion
+              ref={robotARef}
+              mode="relax"
+              width={220}
+            />
+          }
           hp={localHp.playerA}
           totalPunches={player1Punches}
           comboCount={player1ComboCount}
@@ -734,6 +782,13 @@ export default function MatchPage({
           side="two"
           name="PLAYER 2"
           image={hero2Image}
+          character={
+            <RobotMotion
+              ref={robotBRef}
+              mode="relax"
+              width={220}
+            />
+          }
           hp={localHp.playerB}
           totalPunches={player2Punches}
           comboCount={player2ComboCount}

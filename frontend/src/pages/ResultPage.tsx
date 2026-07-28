@@ -1,9 +1,18 @@
+import {
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
+
 import heroImage from "../assets/hero.png";
 import hero2Image from "../assets/hero2.png";
 import type {
   MatchResult,
   MatchWinner,
 } from "../types/matchResult";
+import RobotMotion, {
+  type RobotMotionHandle,
+} from "../components/RobotMotion";
 
 type ResultPageProps = {
   result: MatchResult;
@@ -15,6 +24,8 @@ type PlayerResultCardProps = {
   winner: MatchWinner;
   name: string;
   image: string;
+  /** 指定するとキャラ画像の代わりにこれを表示(RobotMotion用) */
+  character?: ReactNode;
   hp: number;
   punches: number;
   maxCombo: number;
@@ -36,6 +47,7 @@ function PlayerResultCard({
   winner,
   name,
   image,
+  character,
   hp,
   punches,
   maxCombo,
@@ -53,11 +65,13 @@ function PlayerResultCard({
         {status}
       </span>
 
-      <img
-        src={image}
-        alt={name}
-        className="result-player__image"
-      />
+      {character ?? (
+        <img
+          src={image}
+          alt={name}
+          className="result-player__image"
+        />
+      )}
 
       <h2>{name}</h2>
 
@@ -105,6 +119,29 @@ export default function ResultPage({
 }: ResultPageProps) {
   const elapsedTime = 45 - result.remainingTime;
 
+  // ── キャラモーション用 ──
+  const robotARef = useRef<RobotMotionHandle>(null);
+  const robotBRef = useRef<RobotMotionHandle>(null);
+
+  // ページ表示時に勝敗モーションを再生
+  // 勝者: victory / 敗者: defeat / 引き分け: どちらもリラックス待機のまま
+  useEffect(() => {
+    if (result.winner === "playerA") {
+      robotARef.current?.play("victory");
+      robotBRef.current?.play("defeat");
+    } else if (result.winner === "playerB") {
+      robotARef.current?.play("defeat");
+      robotBRef.current?.play("victory");
+    }
+  }, [result.winner]);
+
+  // 敗者は mode="tired" にしておくと、敗北モーション終了後も
+  // うなだれた待機(要休憩ループ)がシームレスに続く
+  const modeFor = (player: MatchWinner): "relax" | "tired" =>
+    result.winner !== "draw" && result.winner !== player
+      ? "tired"
+      : "relax";
+
   return (
     <main className="result-page">
       <section className="result-page__header">
@@ -123,6 +160,13 @@ export default function ResultPage({
           winner={result.winner}
           name="PLAYER 1"
           image={heroImage}
+          character={
+            <RobotMotion
+              ref={robotARef}
+              mode={modeFor("playerA")}
+              width={220}
+            />
+          }
           hp={result.player1Hp}
           punches={result.player1Punches}
           maxCombo={result.player1MaxCombo}
@@ -135,6 +179,13 @@ export default function ResultPage({
           winner={result.winner}
           name="PLAYER 2"
           image={hero2Image}
+          character={
+            <RobotMotion
+              ref={robotBRef}
+              mode={modeFor("playerB")}
+              width={220}
+            />
+          }
           hp={result.player2Hp}
           punches={result.player2Punches}
           maxCombo={result.player2MaxCombo}
