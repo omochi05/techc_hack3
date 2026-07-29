@@ -1,5 +1,4 @@
-import heroImage from "../assets/hero.png";
-import hero2Image from "../assets/hero2.png";
+import RobotMotion from "../components/RobotMotion";
 
 type HealthPageProps = {
   onBackToTop: () => void;
@@ -25,17 +24,14 @@ export default function HealthPage({
       <section className="health-page__players">
         <article className="health-card">
           <div className="health-card__player">
-            <img
-              src={heroImage}
-              alt="PLAYER 1"
-              className="health-card__image"
-            />
+            {/* 状態:良好のモーション */}
+            <RobotMotion mode="healthy" width={140} />
 
             <div>
               <p className="health-card__number">
                 PLAYER 1
               </p>
-              <h2>健康状態：良好</h2>
+              <h2>健康状態:良好</h2>
             </div>
           </div>
 
@@ -74,17 +70,14 @@ export default function HealthPage({
 
         <article className="health-card">
           <div className="health-card__player">
-            <img
-              src={hero2Image}
-              alt="PLAYER 2"
-              className="health-card__image"
-            />
+            {/* 状態:要休憩のモーション */}
+            <RobotMotion mode="tired" width={140} />
 
             <div>
               <p className="health-card__number">
                 PLAYER 2
               </p>
-              <h2>健康状態：要休憩</h2>
+              <h2>健康状態:要休憩</h2>
             </div>
           </div>
 
