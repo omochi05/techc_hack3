@@ -4,316 +4,442 @@ from typing import Any
 
 import requests
 import serial
+from requests import Response
+from serial import SerialException
 
 
-# ESP32の接続先
-SERIAL_PORT = "COM3"
+# ==================================================
+# 設定
+# ==================================================
+
+SERIAL_PORT = "COM6"
 BAUD_RATE = 115200
 
-# FastAPIの送信先
-API_BASE_URL = "http://127.0.0.1:8000"
+MATCH_ID = 1
+ROUND_ID = 1
 
-PUNCH_API_URL = (
-    f"{API_BASE_URL}/api/matches/punch"
+FASTAPI_BASE_URL = "http://127.0.0.1:8000"
+
+FASTAPI_URL = (
+    f"{FASTAPI_BASE_URL}"
+    f"/api/matches/{MATCH_ID}"
+    f"/rounds/{ROUND_ID}"
+    f"/sensor-data"
 )
 
-BOXING_EVENT_API_URL = (
-    f"{API_BASE_URL}/api/matches/boxing-event"
-)
-
-REQUEST_TIMEOUT = 5
-
-SUPPORTED_EVENT_TYPES = {
-    "punch",
-    "timer",
-    "round_start",
-    "round_end",
-}
+REQUEST_TIMEOUT = 2
 
 
-def convert_player_id(
-    player_id: int | None,
-) -> str | None:
+# ==================================================
+# 共通処理
+# ==================================================
+
+def clamp(
+    value: float,
+    minimum: float,
+    maximum: float,
+) -> float:
     """
-    IoT側のplayerIdを、
-    FastAPI側のプレイヤー名へ変換する。
+    数値を指定範囲内に収める。
     """
-
-    if player_id == 1:
-        return "playerA"
-
-    if player_id == 2:
-        return "playerB"
-
-    return None
-
-
-def create_punch_payload(
-    data: dict[str, Any],
-) -> dict[str, Any] | None:
-    """
-    ESP32のパンチデータを、
-    実況用パンチAPIの形式へ変換する。
-    """
-
-    player_id = data.get("playerId")
-    accel_x = data.get("accelX")
-
-    if not isinstance(player_id, int):
-        print(
-            f"⚠️ playerIdが不正です: {player_id}",
-        )
-        return None
-
-    player = convert_player_id(
-        player_id,
+    return max(
+        minimum,
+        min(value, maximum),
     )
 
-    if player is None:
-        print(
-            f"⚠️ 未対応のplayerIdです: {player_id}",
-        )
-        return None
 
-    if not isinstance(
-        accel_x,
-        (int, float),
-    ):
-        print(
-            f"⚠️ accelXが不正です: {accel_x}",
-        )
-        return None
+def is_json_candidate(line: str) -> bool:
+    """
+    受信した文字列がJSONオブジェクトらしい形式か確認する。
+    """
+    stripped_line = line.strip()
+
+    return (
+        stripped_line.startswith("{")
+        and stripped_line.endswith("}")
+    )
+
+
+# ==================================================
+# FastAPI送信用データ作成
+# ==================================================
+
+def create_payload(
+    player_num: int,
+    accel_value: float,
+    heart_rate: int = 130,
+) -> dict[str, Any]:
+    """
+    ESP32から受信した値を、
+    FastAPIのSensorRecordCreateに合う形式へ変換する。
+    """
+
+    punch_speed = round(
+        clamp(
+            accel_value * 0.8,
+            0,
+            100,
+        ),
+        1,
+    )
+
+    impact_value = round(
+        clamp(
+            accel_value,
+            0,
+            10000,
+        ),
+        2,
+    )
 
     return {
-        "player": player,
-        "power": float(accel_x),
+        "device_id": f"glove_{player_num}",
+        "heart_rate": int(
+            clamp(
+                heart_rate,
+                30,
+                250,
+            )
+        ),
+        "punch_speed": punch_speed,
+        "impact_value": impact_value,
     }
 
 
-def send_boxing_event(
-    data: dict[str, Any],
-) -> None:
+# ==================================================
+# FastAPI送信処理
+# ==================================================
+
+def send_to_fastapi(
+    payload: dict[str, Any],
+) -> bool:
     """
-    ESP32から受信した元データを、
-    試合ステータス更新用APIへ送信する。
-    """
-
-    response = requests.post(
-        BOXING_EVENT_API_URL,
-        json=data,
-        timeout=REQUEST_TIMEOUT,
-    )
-
-    response.raise_for_status()
-
-    print(
-        f"📊 試合イベント送信成功 "
-        f"[{response.status_code}] "
-        f"type={data.get('type')}",
-    )
-
-
-def send_punch_event(
-    data: dict[str, Any],
-) -> None:
-    """
-    パンチデータを実況用APIへ送信する。
+    センサーデータをFastAPIへ送信する。
     """
 
-    payload = create_punch_payload(
-        data,
-    )
+    response: Response | None = None
 
-    if payload is None:
-        return
+    try:
+        print(f"📤 FastAPIへ送信: {payload}")
 
-    response = requests.post(
-        PUNCH_API_URL,
-        json=payload,
-        timeout=REQUEST_TIMEOUT,
-    )
+        response = requests.post(
+            FASTAPI_URL,
+            json=payload,
+            timeout=REQUEST_TIMEOUT,
+        )
 
-    response.raise_for_status()
-
-    print(
-        f"🥊 パンチ送信成功 "
-        f"[{response.status_code}] "
-        f"{payload['player']} / "
-        f"power={payload['power']}",
-    )
-
-
-def handle_event(
-    data: dict[str, Any],
-) -> None:
-    """
-    ESP32から受信したイベントを、
-    種類ごとにFastAPIへ送信する。
-    """
-
-    event_type = data.get("type")
-
-    if event_type not in SUPPORTED_EVENT_TYPES:
         print(
-            f"ℹ️ 未対応イベントを受信しました: "
-            f"{event_type}",
-        )
-        return
-
-    # 全イベントを試合ステータス更新APIへ送信
-    send_boxing_event(
-        data,
-    )
-
-    # パンチだけ実況用APIにも送信
-    if event_type == "punch":
-        send_punch_event(
-            data,
+            f"📥 HTTP {response.status_code}: "
+            f"{response.text}"
         )
 
+        response.raise_for_status()
 
-def read_serial_json(
-    serial_connection: serial.Serial,
-) -> dict[str, Any] | None:
+        print(
+            "✅ FastAPIへのセンサーデータ登録に成功しました"
+        )
+
+        return True
+
+    except requests.Timeout:
+        print(
+            "❌ FastAPIへの接続がタイムアウトしました"
+        )
+
+    except requests.ConnectionError:
+        print(
+            "❌ FastAPIへ接続できませんでした。"
+        )
+        print(
+            "   バックエンドが起動しているか"
+            "確認してください"
+        )
+
+    except requests.HTTPError as error:
+        print(
+            f"❌ FastAPIがエラーを返しました: {error}"
+        )
+
+        if response is not None:
+            print(
+                f"   HTTPステータス: "
+                f"{response.status_code}"
+            )
+            print(
+                f"   レスポンス: "
+                f"{response.text}"
+            )
+
+    except requests.RequestException as error:
+        print(
+            "❌ FastAPIへの送信中に"
+            f"エラーが発生しました: {error}"
+        )
+
+    return False
+
+
+# ==================================================
+# JSONデータ検証
+# ==================================================
+
+def get_player_num(
+    data: dict[str, Any],
+) -> int | None:
     """
-    Serialから1行読み込み、
-    JSONオブジェクトへ変換する。
+    playerIdを取得して検証する。
     """
 
-    line = (
-        serial_connection
-        .readline()
-        .decode(
-            "utf-8",
-            errors="ignore",
-        )
-        .strip()
-    )
+    player_num = data.get("playerId")
 
-    if not line:
+    if player_num is None:
+        print(
+            f"⚠️ playerIdがありません: {data}"
+        )
         return None
 
-    print(
-        f"📥 Serial受信: {line}",
+    try:
+        player_num_value = int(player_num)
+
+    except (TypeError, ValueError):
+        print(
+            f"⚠️ playerIdが整数ではありません: "
+            f"{player_num}"
+        )
+        return None
+
+    if player_num_value not in (1, 2):
+        print(
+            "⚠️ playerIdは1または2である必要があります: "
+            f"{player_num_value}"
+        )
+        return None
+
+    return player_num_value
+
+
+def get_accel_value(
+    data: dict[str, Any],
+) -> float | None:
+    """
+    accelXを取得して検証する。
+    """
+
+    accel = data.get("accelX")
+
+    if accel is None:
+        print(
+            f"⚠️ accelXがありません: {data}"
+        )
+        return None
+
+    try:
+        return float(accel)
+
+    except (TypeError, ValueError):
+        print(
+            f"⚠️ accelXが数値ではありません: {accel}"
+        )
+        return None
+
+
+def get_heart_rate(
+    data: dict[str, Any],
+) -> int:
+    """
+    heartRateを取得して検証する。
+    不正な場合は仮の値130を返す。
+    """
+
+    heart_rate_raw = data.get(
+        "heartRate",
+        130,
     )
 
     try:
-        data = json.loads(
-            line,
-        )
-    except json.JSONDecodeError:
+        return int(heart_rate_raw)
+
+    except (TypeError, ValueError):
         print(
-            f"⚠️ JSON解析エラー: {line}",
+            "⚠️ heartRateが数値ではないため、"
+            "仮の値130を使用します"
         )
-        return None
+
+        return 130
+
+
+# ==================================================
+# シリアル受信処理
+# ==================================================
+
+def handle_serial_line(
+    line: str,
+) -> None:
+    """
+    ESP32から受信した1行を処理する。
+
+    起動ログなどの通常文字列は無視し、
+    JSON形式のパンチデータだけを処理する。
+    """
+
+    line = line.strip()
+
+    if not line:
+        return
+
+    # ESP32の起動ログなど、JSONではない文字列
+    if not is_json_candidate(line):
+        print(f"ℹ️ ESP32ログ: {line}")
+        return
+
+    print(f"📥 ESP32 JSON受信: {line}")
+
+    try:
+        data = json.loads(line)
+
+    except json.JSONDecodeError as error:
+        print(
+            f"⚠️ 不正なJSONデータです: {line}"
+        )
+        print(
+            f"   JSON解析エラー: {error}"
+        )
+        return
 
     if not isinstance(data, dict):
         print(
-            f"⚠️ JSONオブジェクトではありません: "
-            f"{line}",
+            f"⚠️ JSONオブジェクトではありません: {data}"
         )
-        return None
+        return
 
-    return data
+    data_type = data.get("type")
+
+    if data_type != "punch":
+        print(
+            "ℹ️ パンチ以外のデータを受信したため"
+            f"無視します: {data}"
+        )
+        return
+
+    player_num = get_player_num(data)
+
+    if player_num is None:
+        return
+
+    accel_value = get_accel_value(data)
+
+    if accel_value is None:
+        return
+
+    heart_rate = get_heart_rate(data)
+
+    payload = create_payload(
+        player_num=player_num,
+        accel_value=accel_value,
+        heart_rate=heart_rate,
+    )
+
+    send_to_fastapi(payload)
 
 
-def main() -> None:
-    serial_connection: serial.Serial | None = None
+# ==================================================
+# メイン処理
+# ==================================================
+
+def start_bridge() -> None:
+    """
+    ESP32中央ユニットへ接続し、
+    グローブから受信したパンチデータを
+    FastAPIへ中継する。
+    """
+
+    ser: serial.Serial | None = None
 
     try:
-        serial_connection = serial.Serial(
-            SERIAL_PORT,
-            BAUD_RATE,
+        ser = serial.Serial(
+            port=SERIAL_PORT,
+            baudrate=BAUD_RATE,
             timeout=1,
         )
 
+    except SerialException as error:
         print(
-            f"✅ ESP32接続完了: {SERIAL_PORT}",
+            f"❌ ポート {SERIAL_PORT} に"
+            f"接続できませんでした"
+        )
+        print(f"   詳細: {error}")
+        print(
+            "   Arduino IDEのシリアルモニターを"
+            "閉じてください"
         )
         print(
-            f"📊 試合イベント送信先: "
-            f"{BOXING_EVENT_API_URL}",
+            "   また、正しいCOMポートか"
+            "確認してください"
         )
-        print(
-            f"🥊 パンチ送信先: "
-            f"{PUNCH_API_URL}",
-        )
+        return
+
+    print(
+        f"✅ ポート {SERIAL_PORT} で"
+        "ESP32セントラルハブに接続しました"
+    )
+    print(
+        f"🌐 FastAPI送信先: {FASTAPI_URL}"
+    )
+    print(
+        "🚀 グローブからのパンチデータを"
+        "待機しています"
+    )
+    print(
+        "終了する場合は Ctrl+C を押してください"
+    )
+
+    try:
+        # シリアル接続時にESP32が再起動する場合がある
+        time.sleep(2)
 
         while True:
-            if serial_connection.in_waiting <= 0:
-                time.sleep(
-                    0.01,
-                )
-                continue
-
-            data = read_serial_json(
-                serial_connection,
-            )
-
-            if data is None:
+            if ser.in_waiting <= 0:
+                time.sleep(0.01)
                 continue
 
             try:
-                handle_event(
-                    data,
-                )
-            except requests.Timeout:
-                print(
-                    "❌ FastAPIへの送信が"
-                    "タイムアウトしました。",
-                )
-            except requests.HTTPError as error:
-                status_code = (
-                    error.response.status_code
-                    if error.response is not None
-                    else "unknown"
-                )
+                raw_data = ser.readline()
 
-                response_text = (
-                    error.response.text
-                    if error.response is not None
-                    else ""
-                )
+                line = raw_data.decode(
+                    "utf-8",
+                    errors="ignore",
+                ).strip()
 
+            except SerialException as error:
                 print(
-                    f"❌ FastAPIがエラーを返しました: "
-                    f"status={status_code} "
-                    f"response={response_text}",
+                    "❌ シリアルデータの読み取りに"
+                    f"失敗しました: {error}"
                 )
-            except requests.ConnectionError:
-                print(
-                    "❌ FastAPIへ接続できません。"
-                    "サーバーが起動しているか"
-                    "確認してください。",
-                )
-            except requests.RequestException as error:
-                print(
-                    f"❌ FastAPIへの送信に失敗しました: "
-                    f"{error}",
-                )
+                break
 
-    except serial.SerialException as error:
-        print(
-            f"❌ シリアルポートを開けません: "
-            f"{error}",
-        )
+            except UnicodeDecodeError as error:
+                print(
+                    "⚠️ 受信データの文字コード変換に"
+                    f"失敗しました: {error}"
+                )
+                continue
+
+            if not line:
+                continue
+
+            handle_serial_line(line)
 
     except KeyboardInterrupt:
-        print(
-            "\n🛑 ブリッジスクリプトを停止します。",
-        )
+        print("\n🛑 bridge.pyを終了します")
 
     finally:
-        if (
-            serial_connection is not None
-            and serial_connection.is_open
-        ):
-            serial_connection.close()
+        if ser is not None and ser.is_open:
+            ser.close()
 
-            print(
-                "🔌 シリアルポートを閉じました。",
-            )
+        print(
+            "🔌 シリアルポートを閉じました"
+        )
 
 
 if __name__ == "__main__":
-    main()
+    start_bridge()
