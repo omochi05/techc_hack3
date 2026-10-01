@@ -36,6 +36,7 @@ import {
 import RobotMotion, {
   type RobotMotionHandle,
 } from "../components/RobotMotion";
+import MatchCountdown from "../match/MatchCountdown";
 
 type MatchPageProps = {
   onFinish: (result: MatchResult) => void;
@@ -189,7 +190,9 @@ export default function MatchPage({
   const [isFinishing, setIsFinishing] = useState(false);
   const [displayTimeLeft, setDisplayTimeLeft] =
     useState(INITIAL_MATCH_TIME);
-  const [isTimerRunning, setIsTimerRunning] = useState(true);
+  // カウントダウン演出が終わるまではタイマーを止めておく
+  const [isCountdownActive, setIsCountdownActive] = useState(true);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [localHp, setLocalHp] = useState({
     playerA: MAX_HP,
     playerB: MAX_HP,
@@ -393,6 +396,13 @@ export default function MatchPage({
     try {
       const response = await getLatestPunch();
 
+      if (isCountdownActive) {
+        // カウントダウン中のパンチ(前の試合の残りを含む)は既読扱いにして無視する
+        lastProcessedPunchIdRef.current =
+          response.punch?.id ?? null;
+        return;
+      }
+
       if (response.punch !== null) {
         processReceivedPunch(response.punch);
       }
@@ -404,9 +414,12 @@ export default function MatchPage({
     } finally {
       isPollingRef.current = false;
     }
-  }, [isFinishing, processReceivedPunch]);
+  }, [isCountdownActive, isFinishing, processReceivedPunch]);
 
-  useEffect(() => {
+  // カウントダウン終了(FIGHT!)で試合開始
+  const handleCountdownComplete = useCallback((): void => {
+    setIsCountdownActive(false);
+    setIsTimerRunning(true);
     void handleMatchEvent(createMatchStartEvent());
   }, [handleMatchEvent]);
 
@@ -644,6 +657,13 @@ export default function MatchPage({
 
   return (
     <main className="match-page">
+      {isCountdownActive && (
+        <MatchCountdown
+          roundLabel={`ROUND ${currentRound}`}
+          onComplete={handleCountdownComplete}
+        />
+      )}
+
       <header className="match-page__header">
         <div className="match-page__brand">
           IoT BOXING ARENA
@@ -662,7 +682,9 @@ export default function MatchPage({
           <p className="match-page__state">
             {isFinishing
               ? "試合終了処理中"
-              : isActive
+              : isCountdownActive
+                ? "試合開始前"
+                : isActive
                 ? "試合中"
                 : "試合停止中"}
           </p>
@@ -675,7 +697,7 @@ export default function MatchPage({
             onClick={() => {
               setIsTimerRunning((current) => !current);
             }}
-            disabled={isFinishing}
+            disabled={isFinishing || isCountdownActive}
           >
             {isTimerRunning ? "一時停止" : "再開"}
           </button>
@@ -819,4 +841,4 @@ export default function MatchPage({
       </footer>
     </main>
   );
-}
+}
