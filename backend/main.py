@@ -4,25 +4,19 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
-from routers.device import router as device_router
 from routers.matches import router as matches_router
-from routers.sensor_records import router as sensor_records_router
 from routers.commentary import router as commentary_router
 
 # SQLAlchemyモデルを読み込む
 # create_allより先にimportする必要がある
 import models.match
 import models.round
-import models.sensor_record
 
 
 app = FastAPI(
     title="IoT Boxing API",
     version="1.0.0",
 )
-
-# デバイスAPI
-app.include_router(device_router)
 
 # モデルで定義したテーブルを作成
 Base.metadata.create_all(bind=engine)
@@ -43,7 +37,6 @@ app.add_middleware(
 
 # ボクシング試合API
 app.include_router(matches_router)
-app.include_router(sensor_records_router)
 app.include_router(commentary_router)
 
 @app.get("/")
@@ -81,4 +74,4 @@ if __name__ == "__main__":
         host="127.0.0.1",
         port=8000,
         reload=True,
-    )
+    )

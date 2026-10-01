@@ -1041,31 +1041,6 @@
   }
 }
 
-.device-connect-preview {
-  margin-top: 24px;
-  padding: 24px;
-  border: 1px solid rgba(124, 92, 255, 0.25);
-  border-radius: 20px;
-  background: rgba(18, 19, 35, 0.88);
-}
-
-.device-connect-preview h2 {
-  margin: 0 0 20px;
-  font-size: 20px;
-}
-
-.device-connect-preview__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-}
-
-@media (max-width: 768px) {
-  .device-connect-preview__grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 .top-page {
   min-height: 100vh;
   padding: 24px;
@@ -3048,5 +3023,192 @@
     justify-self: center;
     flex-wrap: wrap;
     justify-content: center;
+  }
+}
+/* =========================================================
+   Match start countdown (READY? → 3 → 2 → 1 → FIGHT!)
+   ========================================================= */
+
+.match-countdown {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(10, 15, 28, 0.55), rgba(5, 8, 15, 0.92) 70%);
+  backdrop-filter: blur(3px);
+  pointer-events: all;
+  user-select: none;
+}
+
+.match-countdown--fight {
+  animation: match-countdown-fade-out 900ms ease-in forwards;
+}
+
+.match-countdown__inner {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.match-countdown__sub {
+  margin: 0;
+  color: #fbbf24;
+  font-size: clamp(18px, 2.4vw, 28px);
+  font-weight: 900;
+  letter-spacing: 0.4em;
+  animation: match-countdown-slide-in 500ms ease-out both;
+}
+
+.match-countdown__label {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(120px, 22vw, 280px);
+  font-weight: 1000;
+  font-style: italic;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  text-shadow:
+    0 0 28px rgba(255, 255, 255, 0.35),
+    0 14px 30px rgba(0, 0, 0, 0.6);
+  animation: match-countdown-pop 1000ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.match-countdown--ready .match-countdown__label {
+  font-size: clamp(64px, 11vw, 150px);
+  color: #e2e8f0;
+  animation: match-countdown-slide-in 600ms ease-out both;
+}
+
+.match-countdown--fight .match-countdown__label {
+  font-size: clamp(90px, 16vw, 220px);
+  color: #fbbf24;
+  -webkit-text-stroke: 3px #b91c1c;
+  text-shadow:
+    0 0 40px rgba(251, 191, 36, 0.7),
+    0 0 90px rgba(239, 68, 68, 0.55),
+    0 14px 30px rgba(0, 0, 0, 0.6);
+  animation: match-countdown-fight 900ms cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+/* 数字の背後に広がるリング */
+.match-countdown__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(180px, 30vw, 380px);
+  aspect-ratio: 1;
+  border: 6px solid rgba(239, 68, 68, 0.85);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.4);
+  animation: match-countdown-ring 1000ms ease-out forwards;
+}
+
+/* ステップ切り替え時の一瞬のフラッシュ */
+.match-countdown__flash {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  animation: match-countdown-flash 350ms ease-out;
+}
+
+.match-countdown--ready .match-countdown__flash {
+  animation: none;
+}
+
+.match-countdown--fight .match-countdown__flash {
+  background: #fbbf24;
+  animation-duration: 500ms;
+}
+
+@keyframes match-countdown-pop {
+  0% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes match-countdown-fight {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) rotate(-8deg);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.1) rotate(-4deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.25) rotate(-4deg);
+  }
+}
+
+@keyframes match-countdown-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes match-countdown-ring {
+  0% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.6);
+  }
+}
+
+@keyframes match-countdown-flash {
+  0% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes match-countdown-fade-out {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-countdown,
+  .match-countdown__label,
+  .match-countdown__sub,
+  .match-countdown__ring,
+  .match-countdown__flash {
+    animation: none !important;
   }
 }
