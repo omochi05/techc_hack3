@@ -2724,7 +2724,7 @@
 .match-page__controls {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
   margin-top: 12px;
 }
@@ -3210,5 +3210,64 @@
   .match-countdown__ring,
   .match-countdown__flash {
     animation: none !important;
+  }
+}
+
+/* =========================================================
+   Guard action
+   ========================================================= */
+
+.match-page__guard-button {
+  border-color: rgba(250, 204, 21, 0.35);
+  color: #fde68a;
+}
+
+.match-page__guard-button:hover {
+  border-color: rgba(250, 204, 21, 0.6);
+  background: rgba(113, 90, 20, 0.55);
+}
+
+.match-page__guard-button[aria-pressed="true"]:disabled {
+  opacity: 1;
+  color: #1f1600;
+  background: linear-gradient(180deg, #fde047, #f59e0b);
+  border-color: #fbbf24;
+}
+
+.match-page__player-card--guarding {
+  box-shadow:
+    0 0 0 2px rgba(250, 204, 21, 0.55),
+    0 0 36px rgba(250, 204, 21, 0.22);
+  transition: box-shadow 160ms ease;
+}
+
+.match-page__guard-badge {
+  position: absolute;
+  top: 63%;
+  left: 50%;
+  z-index: 2;
+  margin: 0;
+  padding: 4px 14px;
+  border: 2px solid #fbbf24;
+  border-radius: 999px;
+  color: #fde047;
+  background: rgba(30, 22, 0, 0.78);
+  font-size: 14px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.2em;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: match-page-guard-badge 220ms cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+@keyframes match-page-guard-badge {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
 }
