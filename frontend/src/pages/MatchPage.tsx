@@ -19,6 +19,7 @@ import {
   type PunchResponse,
 } from "../api/matchApi";
 import { useMatchStatus } from "../hooks/useMatchStatus";
+import { useSoundEffects } from "../hooks/useSoundEffects";
 import type {
   MatchEvent,
   MatchPlayer,
@@ -216,6 +217,9 @@ export default function MatchPage({
   const isPollingRef = useRef(false);
   const hasInitializedStatusRef = useRef(false);
 
+  // ── 効果音 ──
+  const { playSound } = useSoundEffects();
+
   // ── キャラモーション用 ──
   const robotARef = useRef<RobotMotionHandle>(null);
   const robotBRef = useRef<RobotMotionHandle>(null);
@@ -319,6 +323,8 @@ export default function MatchPage({
 
       // モーション再生(攻撃側パンチ・被弾側被弾)
       playPunchMotion(player);
+      // パンチが決まった効果音
+      playSound("punch");
 
       setLocalPunches((current) => ({
         ...current,
@@ -336,7 +342,7 @@ export default function MatchPage({
         [opponent]: 0,
       }));
     },
-    [calculateDamage, playPunchMotion],
+    [calculateDamage, playPunchMotion, playSound],
   );
 
   const registerComboSequence = useCallback(
@@ -348,6 +354,8 @@ export default function MatchPage({
 
       // モーション再生(攻撃側コンボ・被弾側被弾)
       playComboMotion(player);
+      // コンボが決まった効果音
+      playSound("combo");
 
       setLocalPunches((current) => ({
         ...current,
@@ -367,7 +375,7 @@ export default function MatchPage({
         [opponent]: 0,
       }));
     },
-    [playComboMotion],
+    [playComboMotion, playSound],
   );
 
   const processReceivedPunch = useCallback(
