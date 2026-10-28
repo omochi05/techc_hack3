@@ -59,8 +59,11 @@ type PlayerPanelProps = {
   comboCount: number;
   commentary?: string;
   disabled?: boolean;
+  /** ガード中かどうか(ガード中はダメージを受けない) */
+  isGuarding?: boolean;
   onAttack: () => void;
   onCombo: () => void;
+  onGuard: () => void;
 };
 
 const COMMENTARY_DISPLAY_TIME = 3000;
@@ -69,6 +72,8 @@ const MAX_HP = 100;
 const INITIAL_MATCH_TIME = 45;
 const DAMAGE_DIVISOR = 10;
 const COMBO_TEST_DAMAGE_PER_HIT = 6;
+/** ガードボタンを押してからガードが続く時間(ミリ秒) */
+const GUARD_DURATION = 1500;
 
 function clampHp(hp: number): number {
   return Math.min(MAX_HP, Math.max(0, hp));
@@ -84,14 +89,18 @@ function PlayerPanel({
   comboCount,
   commentary,
   disabled = false,
+  isGuarding = false,
   onAttack,
   onCombo,
+  onGuard,
 }: PlayerPanelProps) {
   const safeHp = clampHp(hp);
 
   return (
     <article
-      className={`match-page__player-card match-page__player-card--${side}`}
+      className={`match-page__player-card match-page__player-card--${side}${
+        isGuarding ? " match-page__player-card--guarding" : ""
+      }`}
       aria-label={`${name}の試合情報`}
     >
       {commentary !== undefined && (
@@ -129,6 +138,12 @@ function PlayerPanel({
           />
         </div>
       </div>
+
+      {isGuarding && (
+        <p className="match-page__guard-badge" role="status">
+          GUARD
+        </p>
+      )}
 
       {character ?? (
         <img
@@ -171,6 +186,16 @@ function PlayerPanel({
           disabled={disabled}
         >
           コンボテスト
+        </button>
+
+        <button
+          type="button"
+          className="match-page__attack-button match-page__guard-button"
+          onClick={onGuard}
+          disabled={disabled || isGuarding}
+          aria-pressed={isGuarding}
+        >
+          {isGuarding ? "ガード中" : "ガードテスト"}
         </button>
       </div>
     </article>
@@ -219,6 +244,60 @@ export default function MatchPage({
 
   // ── 効果音 ──
   const { playSound } = useSoundEffects();
+
+  // ── ガード ──
+  // 画面表示用の state と、パンチ判定で最新値を読むための ref を両方持つ
+  const [guarding, setGuarding] = useState<Record<MatchPlayer, boolean>>({
+    playerA: false,
+    playerB: false,
+  });
+  const guardingRef = useRef<Record<MatchPlayer, boolean>>({
+    playerA: false,
+    playerB: false,
+  });
+  const guardTimerRef = useRef<Record<MatchPlayer, number | null>>({
+    playerA: null,
+    playerB: null,
+  });
+
+  const setPlayerGuarding = useCallback(
+    (player: MatchPlayer, value: boolean): void => {
+      guardingRef.current = { ...guardingRef.current, [player]: value };
+      setGuarding((current) => ({ ...current, [player]: value }));
+    },
+    [],
+  );
+
+  // ガード開始。GUARD_DURATION 経過後に自動で解除する
+  const startGuard = useCallback(
+    (player: MatchPlayer): void => {
+      const currentTimer = guardTimerRef.current[player];
+      if (currentTimer !== null) {
+        window.clearTimeout(currentTimer);
+      }
+
+      setPlayerGuarding(player, true);
+
+      guardTimerRef.current[player] = window.setTimeout(() => {
+        setPlayerGuarding(player, false);
+        guardTimerRef.current[player] = null;
+      }, GUARD_DURATION);
+    },
+    [setPlayerGuarding],
+  );
+
+  // 画面を離れるときにガード解除タイマーを止める
+  useEffect(() => {
+    const timers = guardTimerRef.current;
+    return () => {
+      (Object.keys(timers) as MatchPlayer[]).forEach((player) => {
+        const timer = timers[player];
+        if (timer !== null) {
+          window.clearTimeout(timer);
+        }
+      });
+    };
+  }, []);
 
   // ── キャラモーション用 ──
   const robotARef = useRef<RobotMotionHandle>(null);
@@ -315,14 +394,43 @@ export default function MatchPage({
     return Math.max(1, Math.round(power / DAMAGE_DIVISOR));
   }, []);
 
+  /**
+   * 相手がガード中だったときの処理。
+   * パンチ数は数えるが、ダメージは与えず、連続ヒット(コンボ)も途切れる。
+   */
+  const registerBlockedAttack = useCallback(
+    (player: MatchPlayer, punchCount: number): void => {
+      setLocalPunches((current) => ({
+        ...current,
+        [player]: current[player] + punchCount,
+      }));
+
+      setConsecutiveHits((current) => ({
+        ...current,
+        [player]: 0,
+      }));
+
+      playSound("guard");
+    },
+    [playSound],
+  );
+
+  /** パンチを処理する。ダメージが入ったら true、ガードされたら false を返す */
   const registerHit = useCallback(
-    (player: MatchPlayer, power: number): void => {
+    (player: MatchPlayer, power: number): boolean => {
       const opponent: MatchPlayer =
         player === "playerA" ? "playerB" : "playerA";
       const damage = calculateDamage(power);
 
       // モーション再生(攻撃側パンチ・被弾側被弾)
+      // ※相手がガード中なら RobotMotion 側でガードリアクションになる
       playPunchMotion(player);
+
+      if (guardingRef.current[opponent]) {
+        registerBlockedAttack(player, 1);
+        return false;
+      }
+
       // パンチが決まった効果音
       playSound("punch");
 
@@ -341,12 +449,15 @@ export default function MatchPage({
         [player]: current[player] + 1,
         [opponent]: 0,
       }));
+
+      return true;
     },
-    [calculateDamage, playPunchMotion, playSound],
+    [calculateDamage, playPunchMotion, playSound, registerBlockedAttack],
   );
 
+  /** コンボを処理する。ダメージが入ったら true、ガードされたら false を返す */
   const registerComboSequence = useCallback(
-    (player: MatchPlayer, hitCount: number): void => {
+    (player: MatchPlayer, hitCount: number): boolean => {
       const opponent: MatchPlayer =
         player === "playerA" ? "playerB" : "playerA";
       const totalDamage =
@@ -354,6 +465,12 @@ export default function MatchPage({
 
       // モーション再生(攻撃側コンボ・被弾側被弾)
       playComboMotion(player);
+
+      if (guardingRef.current[opponent]) {
+        registerBlockedAttack(player, hitCount);
+        return false;
+      }
+
       // コンボが決まった効果音
       playSound("combo");
 
@@ -374,8 +491,10 @@ export default function MatchPage({
         [player]: current[player] + hitCount,
         [opponent]: 0,
       }));
+
+      return true;
     },
-    [playComboMotion, playSound],
+    [playComboMotion, playSound, registerBlockedAttack],
   );
 
   const processReceivedPunch = useCallback(
@@ -385,11 +504,13 @@ export default function MatchPage({
       }
 
       lastProcessedPunchIdRef.current = punch.id;
-      registerHit(punch.player, punch.power);
 
-      void handleMatchEvent(
-        createPunchEvent(punch.player, punch.power),
-      );
+      // ガードされたときは実況APIを呼ばない
+      if (registerHit(punch.player, punch.power)) {
+        void handleMatchEvent(
+          createPunchEvent(punch.player, punch.power),
+        );
+      }
     },
     [handleMatchEvent, registerHit],
   );
@@ -510,37 +631,41 @@ export default function MatchPage({
 
   const handlePlayer1Attack = (): void => {
     if (!isFinishing) {
-      registerHit("playerA", 87);
-      void handleMatchEvent(
-        createPunchEvent("playerA", 87),
-      );
+      if (registerHit("playerA", 87)) {
+        void handleMatchEvent(
+          createPunchEvent("playerA", 87),
+        );
+      }
     }
   };
 
   const handlePlayer2Attack = (): void => {
     if (!isFinishing) {
-      registerHit("playerB", 72);
-      void handleMatchEvent(
-        createPunchEvent("playerB", 72),
-      );
+      if (registerHit("playerB", 72)) {
+        void handleMatchEvent(
+          createPunchEvent("playerB", 72),
+        );
+      }
     }
   };
 
   const handlePlayer1Combo = (): void => {
     if (!isFinishing) {
-      registerComboSequence("playerA", 3);
-      void handleMatchEvent(
-        createComboEvent("playerA", 3),
-      );
+      if (registerComboSequence("playerA", 3)) {
+        void handleMatchEvent(
+          createComboEvent("playerA", 3),
+        );
+      }
     }
   };
 
   const handlePlayer2Combo = (): void => {
     if (!isFinishing) {
-      registerComboSequence("playerB", 4);
-      void handleMatchEvent(
-        createComboEvent("playerB", 4),
-      );
+      if (registerComboSequence("playerB", 4)) {
+        void handleMatchEvent(
+          createComboEvent("playerB", 4),
+        );
+      }
     }
   };
 
@@ -764,7 +889,7 @@ export default function MatchPage({
           character={
             <RobotMotion
               ref={robotARef}
-              mode="relax"
+              mode={guarding.playerA ? "guard" : "relax"}
               width={220}
             />
           }
@@ -782,8 +907,10 @@ export default function MatchPage({
             localHp.playerA === 0 ||
             localHp.playerB === 0
           }
+          isGuarding={guarding.playerA}
           onAttack={handlePlayer1Attack}
           onCombo={handlePlayer1Combo}
+          onGuard={() => startGuard("playerA")}
         />
 
         <section
@@ -815,7 +942,7 @@ export default function MatchPage({
           character={
             <RobotMotion
               ref={robotBRef}
-              mode="relax"
+              mode={guarding.playerB ? "guard" : "relax"}
               width={220}
             />
           }
@@ -833,8 +960,10 @@ export default function MatchPage({
             localHp.playerA === 0 ||
             localHp.playerB === 0
           }
+          isGuarding={guarding.playerB}
           onAttack={handlePlayer2Attack}
           onCombo={handlePlayer2Combo}
+          onGuard={() => startGuard("playerB")}
         />
       </section>
 

@@ -110,6 +110,17 @@ def make_combo() -> list[float]:
     return fade_out(normalize(sound))
 
 
+def make_guard() -> list[float]:
+    impact = mix(
+        thump(0.12, start_freq=140, end_freq=80, decay=40),
+        noise_burst(0.03, decay=120, brightness=0.8),
+        gain=0.8,
+    )
+    ring = chime(0.4, [920.0, 1430.0, 2210.0], decay=12)
+    sound = mix(impact, ring, gain=0.6)
+    return fade_out(normalize(sound, peak=0.8))
+
+
 
 def write_wav(path: Path, samples: list[float]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -127,6 +138,7 @@ def write_wav(path: Path, samples: list[float]) -> None:
 def main() -> None:
     write_wav(OUTPUT_DIR / "punch.wav", make_punch())
     write_wav(OUTPUT_DIR / "combo.wav", make_combo())
+    write_wav(OUTPUT_DIR / "guard.wav", make_guard())
 
 
 if __name__ == "__main__":

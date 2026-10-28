@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import comboSoundUrl from "../assets/sounds/combo.wav";
+import guardSoundUrl from "../assets/sounds/guard.wav";
 import punchSoundUrl from "../assets/sounds/punch.wav";
 
 /**
  * 効果音の種類。
  * 音そのものは scripts/generate_sound_effects.py で生成している。
  */
-export type SoundEffect = "punch" | "combo";
+export type SoundEffect = "punch" | "combo" | "guard";
 
 const SOUND_SOURCES: Record<SoundEffect, string> = {
   punch: punchSoundUrl,
   combo: comboSoundUrl,
+  guard: guardSoundUrl,
 };
 
 const SOUND_VOLUMES: Record<SoundEffect, number> = {
   punch: 0.8,
   combo: 0.9,
+  guard: 0.8,
 };
 
 type UseSoundEffectsResult = {
